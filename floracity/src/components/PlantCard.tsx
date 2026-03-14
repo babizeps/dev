@@ -1,6 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import type { Plant } from '../supabase/plants';
 import { Colors } from '../constants/colors';
+import { PixelPlant } from './PixelPlant';
+
+const mono = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
 type Props = {
   plant: Plant;
@@ -8,88 +11,115 @@ type Props = {
   isPioneer: boolean;
   photoUrl?: string;
   onPress: () => void;
+  entryIndex: number;
+  selected?: boolean;
 };
 
-export default function PlantCard({ plant, discovered, isPioneer, photoUrl, onPress }: Props) {
+export default function PlantCard({ plant, discovered, isPioneer, photoUrl, onPress, entryIndex, selected }: Props) {
+  const numStr = String(entryIndex).padStart(3, '0');
+
   return (
     <TouchableOpacity
-      style={[styles.card, discovered ? styles.cardDiscovered : styles.cardLocked, isPioneer && styles.cardPioneer]}
+      style={[
+        styles.cell,
+        (isPioneer || selected) && styles.cellSelected,
+        !discovered && styles.cellLocked,
+      ]}
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={0.75}
     >
-      {discovered && photoUrl ? (
-        <Image source={{ uri: photoUrl }} style={styles.photo} />
-      ) : (
-        <View style={[styles.photo, styles.photoPlaceholder]}>
-          <Text style={styles.placeholderEmoji}>{discovered ? '🌿' : '❓'}</Text>
-        </View>
+      {/* Caught indicator dot (top-left) */}
+      {discovered && (
+        <View style={styles.caughtDot} />
       )}
 
-      {isPioneer && <View style={styles.pioneerBadge}><Text style={styles.pioneerStar}>⭐</Text></View>}
+      {/* Entry number (top-right) */}
+      <Text style={styles.number}>{numStr}</Text>
 
-      <View style={styles.info}>
-        {discovered ? (
-          <>
-            <Text style={styles.scientific} numberOfLines={1}>{plant.scientific_name}</Text>
-            {plant.common_name && (
-              <Text style={styles.common} numberOfLines={1}>{plant.common_name}</Text>
-            )}
-          </>
+      {/* Plant image or placeholder */}
+      <View style={styles.imageArea}>
+        {discovered && photoUrl ? (
+          <Image
+            source={{ uri: photoUrl }}
+            style={[styles.image, !discovered && styles.imageLocked]}
+          />
         ) : (
-          <>
-            <Text style={styles.lockedName}>???</Text>
-            <Text style={styles.lockedSub}>Not yet discovered</Text>
-          </>
+          <PixelPlant seed={entryIndex} locked={!discovered} size={5} />
         )}
-        <Text style={styles.count}>🔍 {plant.discovery_count}</Text>
+        {!discovered && <View style={styles.lockedOverlay} />}
       </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 14,
+  cell: {
+    aspectRatio: 1,
+    backgroundColor: Colors.contentBg,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
+    borderTopColor: Colors.pixelHighlight,
+    borderLeftColor: Colors.pixelHighlight,
+    borderBottomColor: Colors.pixelShadow,
+    borderRightColor: Colors.pixelShadow,
     overflow: 'hidden',
-    marginBottom: 12,
-    borderWidth: 1,
+    position: 'relative',
+    flex: 1,
   },
-  cardDiscovered: {
-    backgroundColor: Colors.card,
-    borderColor: Colors.border,
+  cellSelected: {
+    borderTopColor: Colors.infoBoxBorder,
+    borderLeftColor: Colors.infoBoxBorder,
+    borderBottomColor: '#8B0000',
+    borderRightColor: '#8B0000',
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
   },
-  cardLocked: {
-    backgroundColor: Colors.cardLocked,
-    borderColor: Colors.textDim,
-    opacity: 0.65,
+  cellLocked: {
+    backgroundColor: '#D8D8D8',
   },
-  cardPioneer: {
-    borderColor: Colors.pioneer,
-    borderWidth: 2,
+  caughtDot: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 0,
+    backgroundColor: Colors.infoBoxBorder,
+    zIndex: 2,
   },
-  photo: {
-    width: '100%',
-    height: 130,
+  number: {
+    position: 'absolute',
+    top: 3,
+    right: 4,
+    fontSize: 9,
+    fontFamily: mono,
+    color: Colors.darkTextMuted,
+    zIndex: 2,
   },
-  photoPlaceholder: {
-    backgroundColor: Colors.surface,
+  imageArea: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderEmoji: { fontSize: 40 },
-  pioneerBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: Colors.pioneer,
-    borderRadius: 12,
-    padding: 4,
+  image: {
+    width: '80%',
+    height: '80%',
+    resizeMode: 'cover',
   },
-  pioneerStar: { fontSize: 14 },
-  info: { padding: 10 },
-  scientific: { color: Colors.text, fontStyle: 'italic', fontWeight: '600', fontSize: 13 },
-  common: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
-  lockedName: { color: Colors.textDim, fontWeight: '700', fontSize: 14 },
-  lockedSub: { color: Colors.textDim, fontSize: 11, marginTop: 2 },
-  count: { color: Colors.textMuted, fontSize: 11, marginTop: 4 },
+  imageLocked: {
+    opacity: 0.15,
+  },
+  lockedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+    opacity: 0.35,
+  },
 });

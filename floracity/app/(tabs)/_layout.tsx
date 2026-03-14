@@ -1,12 +1,27 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { Colors } from '../../src/constants/colors';
 
 function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
   return (
-    <Text style={{ fontSize: focused ? 26 : 22, opacity: focused ? 1 : 0.5 }}>
-      {emoji}
-    </Text>
+    <View style={{
+      width: 36,
+      height: 36,
+      borderRadius: 0,
+      backgroundColor: focused ? Colors.primary : '#1f0f0f',
+      borderTopWidth: focused ? 0 : 2,
+      borderLeftWidth: focused ? 0 : 2,
+      borderBottomWidth: focused ? 0 : 2,
+      borderRightWidth: focused ? 0 : 2,
+      borderTopColor: '#333333',
+      borderLeftColor: '#333333',
+      borderBottomColor: '#111111',
+      borderRightColor: '#111111',
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}>
+      <Text style={{ fontSize: focused ? 18 : 15 }}>{emoji}</Text>
+    </View>
   );
 }
 
@@ -16,43 +31,49 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          borderTopWidth: 1,
-          paddingBottom: 8,
-          paddingTop: 4,
-          height: 64,
+          backgroundColor: '#0f0505',
+          borderTopColor: Colors.primary,
+          borderTopWidth: 3,
+          paddingBottom: 10,
+          paddingTop: 6,
+          height: 72,
+          borderRadius: 0,
         },
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarInactiveTintColor: Colors.textDim,
+        tabBarLabelStyle: {
+          fontSize: 9,
+          fontWeight: '700',
+          letterSpacing: 1,
+          fontFamily: 'monospace',
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Floradex',
+          title: 'FLORADEX',
           tabBarIcon: ({ focused }) => <TabIcon emoji="📖" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="camera"
         options={{
-          title: 'Discover',
+          title: 'DISCOVER',
           tabBarIcon: ({ focused }) => <TabIcon emoji="📷" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: 'Rankings',
+          title: 'RANKINGS',
           tabBarIcon: ({ focused }) => <TabIcon emoji="🏆" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'PROFILE',
           tabBarIcon: ({ focused }) => <TabIcon emoji="🌱" focused={focused} />,
         }}
       />

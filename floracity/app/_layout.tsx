@@ -8,6 +8,7 @@ import { getUserDiscoveredPlantIds } from '../src/supabase/discoveries';
 import {
   MOCK_USER_ID, MOCK_DISCOVERED_IDS, MOCK_PIONEER_IDS,
 } from '../src/mock/data';
+import { ChiptunePlayer } from '../src/components/ChiptunePlayer';
 
 const MOCK_MODE = process.env.EXPO_PUBLIC_MOCK_MODE === 'true';
 
@@ -75,6 +76,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <ChiptunePlayer />
       <Stack screenOptions={{ headerShown: false }} />
     </GestureHandlerRootView>
   );
