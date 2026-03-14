@@ -1,0 +1,112 @@
+.reader-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-toolbar);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  gap: 12px;
+}
+
+.reader-toolbar.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reader-toolbar.hidden {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.toolbar-right {
+  justify-content: flex-end;
+}
+
+.toolbar-center {
+  flex: 0 0 auto;
+}
+
+.book-title-display {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-indicator {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.toolbar-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover,
+.toolbar-btn.active {
+  background: var(--bg-card);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.font-size-control,
+.font-family-control,
+.theme-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.font-size-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: center;
+}
+
+.theme-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.theme-dot:hover,
+.theme-dot.active {
+  transform: scale(1.2);
+  border-color: var(--accent);
+}
+
+.theme-dot.theme-light { background: #ffffff; }
+.theme-dot.theme-dark  { background: #1c1c1e; }
+.theme-dot.theme-sepia { background: #f4ecd8; }

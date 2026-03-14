@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  sessions     Session[]
+  workspaces   Workspace[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String   @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  blocks    Block[]
+
+  @@map("workspaces")
+}
+
+model Block {
+  id          String    @id @default(uuid())
+  type        String
+  workspaceId String    @map("workspace_id")
+  parentId    String?   @map("parent_id")
+  content     Json      @default("{}")
+  order       Float     @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent    Block?    @relation("BlockChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Block[]   @relation("BlockChildren")
+
+  @@index([workspaceId])
+  @@index([parentId])
+  @@index([workspaceId, parentId, order])
+  @@map("blocks")
+}

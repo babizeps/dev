@@ -1,0 +1,296 @@
+.reader-page {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+/* PDF */
+.pdf-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 40px 48px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.pdf-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 4px 32px var(--shadow);
+  border-radius: 4px;
+  display: block;
+}
+
+/* EPUB */
+.epub-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 52px;
+}
+
+.epub-container {
+  flex: 1;
+  min-height: 0;
+}
+
+.epub-nav-btns {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 24px;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.reader-page:hover .epub-nav-btns {
+  opacity: 1;
+}
+
+.epub-nav-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.epub-nav-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* 3D page flip keyframes — NO perspective() in transform, use CSS perspective property on parent */
+@keyframes flip-forward {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(-180deg); }
+}
+@keyframes flip-backward {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(180deg); }
+}
+@keyframes flip-shadow {
+  0%   { opacity: 0; }
+  35%  { opacity: 1; }
+  65%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* TXT — full-screen double-page spread */
+.txt-spread-wrapper {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  /* perspective MUST be on parent — overflow:hidden would break 3D in WebKit */
+  perspective: 2400px;
+  perspective-origin: 50% 50%;
+}
+
+.txt-spread {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 2px 1fr;
+  overflow: hidden;
+}
+
+/* ---- 3D flip overlay ---- */
+.flip-container {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 10;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Forward: right page rotates around its LEFT edge (spine) toward the left */
+.flip-right {
+  right: 0;
+  transform-origin: left center;
+  animation: flip-forward 500ms ease-in-out forwards;
+}
+
+/* Backward: left page rotates around its RIGHT edge (spine) toward the right */
+.flip-left {
+  left: 0;
+  transform-origin: right center;
+  animation: flip-backward 500ms ease-in-out forwards;
+}
+
+/* Front and back faces of the page */
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background: var(--bg-card);
+  padding: 52px 64px 48px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Eigene Layer verhindert Subpixel-Zittern des Texts */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Front: faces viewer at the start (no extra transform) */
+.flip-front {}
+
+/* Back: rotated 180° so it initially faces away; shown when parent completes the flip */
+.flip-right .flip-back { transform: rotateY(180deg);  }
+.flip-left  .flip-back { transform: rotateY(-180deg); }
+
+/* Page-edge shadow for depth */
+.flip-right::after,
+.flip-left::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  animation: flip-shadow 500ms ease-in-out forwards;
+  backface-visibility: hidden;
+}
+.flip-right::after {
+  left: 0;
+  background: linear-gradient(to right, rgba(0,0,0,0.22), transparent);
+}
+.flip-left::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0,0,0,0.22), transparent);
+}
+
+.txt-book-page {
+  background: var(--bg-card);
+  padding: 52px 64px 48px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  /* Eigene GPU-Compositing-Ebene → kein Neuzeichnen während der Nachbar-Animation */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.txt-book-page-left {
+  box-shadow: inset -8px 0 16px -8px rgba(0,0,0,0.12);
+}
+
+.txt-book-page-right {
+  box-shadow: inset 8px 0 16px -8px rgba(0,0,0,0.12);
+}
+
+.txt-book-spine {
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.txt-column {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+}
+
+.txt-paragraph {
+  margin: 0 0 1.2em;
+  text-align: justify;
+  hyphens: none;
+  -webkit-hyphens: none;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.txt-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.page-num {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Navigation arrows — float over the pages */
+.spread-nav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 40px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 20;
+}
+
+.spread-nav-left  { left: 0;  --dir: right; }
+.spread-nav-right { right: 0; --dir: left;  }
+
+/* Show only when mouse is active AND not at boundary */
+.spread-nav.nav-visible {
+  opacity: 0.35;
+  pointer-events: auto;
+}
+
+.spread-nav.nav-visible:hover {
+  opacity: 0.9;
+  background: linear-gradient(
+    to var(--dir),
+    rgba(0,0,0,0.07) 0%,
+    transparent 100%
+  );
+}
+
+/* Reader content wrapper (PDF/EPUB) */
+.reader-content {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Page nav hint (PDF/TXT bottom bar) */
+.page-nav-hint {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 32px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}

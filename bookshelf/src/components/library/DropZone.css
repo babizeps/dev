@@ -1,0 +1,34 @@
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 60px 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin: 40px auto;
+  max-width: 480px;
+}
+
+.dropzone:hover,
+.dropzone.dragging {
+  border-color: var(--accent);
+  background: var(--bg-card);
+}
+
+.dropzone-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.dropzone-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.dropzone-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}

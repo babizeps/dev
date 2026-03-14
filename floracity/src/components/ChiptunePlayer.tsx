@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import WebView from 'react-native-webview';
 
 // Minimal silent WAV (44 bytes) — playing this unlocks iOS AudioContext autoplay
@@ -152,6 +153,7 @@ const HTML = `<!DOCTYPE html>
 </html>`;
 
 export function ChiptunePlayer() {
+  if (Platform.OS === 'web') return null;
   return (
     // Positioned above the visible area so it is off-screen but still live
     <WebView
