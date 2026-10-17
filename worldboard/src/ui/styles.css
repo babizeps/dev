@@ -1,0 +1,426 @@
+/* ------------------------------------------------------------------
+   Themes: Stil (studio | sketch) × Modus (light | dark)
+   Pro Kartentyp: --t-<typ>     Akzent (Streifen, Symbole)
+                  --t-<typ>-fg  Text auf Plakette
+                  --t-<typ>-bg  Plakette (Studio) bzw. Zettelfarbe (Skizze)
+   ------------------------------------------------------------------ */
+
+:root,
+:root[data-style="studio"][data-mode="light"] {
+  --bg: #f4f4f1;
+  --dot: #d6d6d0;
+  --surface: #ffffff;
+  --surface-muted: #eeeeea;
+  --border: #e3e3de;
+  --text: #1e1e1c;
+  --muted: #5f5f5a;
+  --body: #5f5f5a;
+  --accent: #3d6fd9;
+  --edge: #b4b4ad;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.05);
+  --tape: transparent;
+
+  --t-notiz: #9a9a93;      --t-notiz-fg: #4a4a46;      --t-notiz-bg: #eeeeea;
+  --t-figur: #e0643b;      --t-figur-fg: #a33e1c;      --t-figur-bg: #fcebe4;
+  --t-ort: #2e8b6e;        --t-ort-fg: #1d6650;        --t-ort-bg: #e1f2ec;
+  --t-fraktion: #3d6fd9;   --t-fraktion-fg: #2a52a8;   --t-fraktion-bg: #e4ecfb;
+  --t-ereignis: #d9a02b;   --t-ereignis-fg: #7d5806;   --t-ereignis-bg: #fbf0d6;
+  --t-gegenstand: #7a5bc7; --t-gegenstand-fg: #5b3fa6; --t-gegenstand-bg: #eee7fb;
+}
+
+:root[data-style="studio"][data-mode="dark"] {
+  --bg: #0e1320;
+  --dot: #222b44;
+  --surface: #182033;
+  --surface-muted: #121828;
+  --border: #2a3550;
+  --text: #eef1f8;
+  --muted: #a9b3c9;
+  --body: #a9b3c9;
+  --accent: #7aa2ff;
+  --edge: #4b5b85;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+
+  --t-notiz: #b8c0d4;      --t-notiz-fg: #b8c0d4;      --t-notiz-bg: #232b3f;
+  --t-figur: #ff8a65;      --t-figur-fg: #ff8a65;      --t-figur-bg: #3a2620;
+  --t-ort: #4fd1a5;        --t-ort-fg: #4fd1a5;        --t-ort-bg: #173a33;
+  --t-fraktion: #7aa2ff;   --t-fraktion-fg: #7aa2ff;   --t-fraktion-bg: #1e2a4d;
+  --t-ereignis: #ffc857;   --t-ereignis-fg: #ffc857;   --t-ereignis-bg: #3a321a;
+  --t-gegenstand: #c7a6ff; --t-gegenstand-fg: #c7a6ff; --t-gegenstand-bg: #2e2447;
+}
+
+:root[data-style="sketch"][data-mode="light"] {
+  --bg: #fafaf7;
+  --dot: #cfcfc8;
+  --surface: #ffffff;
+  --surface-muted: #f0eee8;
+  --border: #26251f;
+  --text: #26251f;
+  --muted: #5c5a52;
+  --body: #26251f;
+  --accent: #5a4fb0;
+  --edge: #3a3833;
+  --shadow: 0 6px 10px rgba(38, 37, 31, 0.1);
+  --tape: rgba(220, 212, 190, 0.85);
+
+  --t-notiz: #5c5a52;      --t-notiz-fg: #5c5a52;      --t-notiz-bg: #ffffff;
+  --t-figur: #5c3a2e;      --t-figur-fg: #5c3a2e;      --t-figur-bg: #ffe1d6;
+  --t-ort: #2c5444;        --t-ort-fg: #2c5444;        --t-ort-bg: #d8f1e4;
+  --t-fraktion: #2e3e6e;   --t-fraktion-fg: #2e3e6e;   --t-fraktion-bg: #dce5ff;
+  --t-ereignis: #5e4a12;   --t-ereignis-fg: #5e4a12;   --t-ereignis-bg: #fff0c2;
+  --t-gegenstand: #45307a; --t-gegenstand-fg: #45307a; --t-gegenstand-bg: #ebe2ff;
+}
+
+:root[data-style="sketch"][data-mode="dark"] {
+  --bg: #1c1b18;
+  --dot: #3a3832;
+  --surface: #2a2924;
+  --surface-muted: #23221e;
+  --border: #e8e4d8;
+  --text: #f2efe6;
+  --muted: #b9b4a6;
+  --body: #f2efe6;
+  --accent: #b3a8ff;
+  --edge: #cfc9ba;
+  --shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+  --tape: rgba(255, 250, 235, 0.18);
+
+  --t-notiz: #b9b4a6;      --t-notiz-fg: #b9b4a6;      --t-notiz-bg: #2a2924;
+  --t-figur: #ffc4ae;      --t-figur-fg: #ffc4ae;      --t-figur-bg: #4a2e26;
+  --t-ort: #a8e3c6;        --t-ort-fg: #a8e3c6;        --t-ort-bg: #213d31;
+  --t-fraktion: #bccbff;   --t-fraktion-fg: #bccbff;   --t-fraktion-bg: #283350;
+  --t-ereignis: #ffe08a;   --t-ereignis-fg: #ffe08a;   --t-ereignis-bg: #46391a;
+  --t-gegenstand: #d6c6ff; --t-gegenstand-fg: #d6c6ff; --t-gegenstand-bg: #372b4f;
+}
+
+:root,
+:root[data-style="studio"] {
+  --font-ui: "Manrope", system-ui, sans-serif;
+  --font-title: "Manrope", system-ui, sans-serif;
+  --title-size: 17px;
+  --title-weight: 700;
+  --radius: 10px;
+  --pill: 8px;
+  --tilt-max: 0deg;
+  --canvas-top: 56px;
+  --edge-width: 1.5;
+}
+
+:root[data-style="sketch"] {
+  --font-ui: "Karla", system-ui, sans-serif;
+  --font-title: "Caveat", "Comic Sans MS", cursive;
+  --title-size: 30px;
+  --title-weight: 700;
+  --radius: 2px;
+  --pill: 999px;
+  --tilt-max: 1.6deg;
+  --canvas-top: 0px;
+  --edge-width: 1.8;
+}
+
+[data-type="notiz"] { --tc: var(--t-notiz); --tf: var(--t-notiz-fg); --tb: var(--t-notiz-bg); }
+[data-type="figur"] { --tc: var(--t-figur); --tf: var(--t-figur-fg); --tb: var(--t-figur-bg); }
+[data-type="ort"] { --tc: var(--t-ort); --tf: var(--t-ort-fg); --tb: var(--t-ort-bg); }
+[data-type="fraktion"] { --tc: var(--t-fraktion); --tf: var(--t-fraktion-fg); --tb: var(--t-fraktion-bg); }
+[data-type="ereignis"] { --tc: var(--t-ereignis); --tf: var(--t-ereignis-fg); --tb: var(--t-ereignis-bg); }
+[data-type="gegenstand"] { --tc: var(--t-gegenstand); --tf: var(--t-gegenstand-fg); --tb: var(--t-gegenstand-bg); }
+
+/* ------------------------------------------------------------------ Grundlage */
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { position: fixed; inset: 0; overflow: hidden; }
+
+.fatal { max-width: 560px; margin: 15vh auto; padding: 0 16px; }
+
+/* ------------------------------------------------------------------ Werkzeugleiste */
+
+.toolbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  height: 56px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-group { display: flex; align-items: center; gap: 4px; }
+.toolbar-right { display: flex; align-items: center; gap: 10px; }
+
+.brand { gap: 10px; white-space: nowrap; }
+.brand-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--text); }
+.brand-name { font-weight: 700; font-size: 16px; }
+.brand-world { color: var(--muted); }
+.brand-world::before { content: "/ "; }
+
+.types { padding: 4px; border-radius: 10px; background: var(--surface-muted); overflow-x: auto; }
+
+.tool-btn {
+  height: 40px;
+  min-width: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tool-btn:hover { background: var(--surface); }
+.tool-btn[data-type] svg { color: var(--tc); }
+.tool-btn[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.icon-btn { padding: 0; font-size: 18px; }
+
+.segmented { padding: 4px; border-radius: 10px; background: var(--surface-muted); }
+.toolbar-right > .icon-btn { background: var(--surface-muted); border-radius: 10px; width: 48px; height: 48px; }
+
+.save-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.save-status.is-saved svg { color: var(--t-ort); }
+.save-status.is-error { color: var(--t-figur-fg); font-weight: 500; }
+
+.hint, .zoom { position: absolute; z-index: 10; bottom: 16px; }
+.hint { left: 20px; margin: 0; font-size: 13px; color: var(--muted); }
+.zoom {
+  right: 16px;
+  gap: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.zoom-value { min-width: 52px; text-align: center; font-size: 13px; }
+
+/* Skizzenbuch: schwebende Pillen statt Leiste */
+[data-style="sketch"] .toolbar { top: 12px; left: 16px; right: 16px; padding: 0; background: transparent; border: 0; }
+[data-style="sketch"] .toolbar-group,
+[data-style="sketch"] .zoom {
+  height: auto;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  box-shadow: none;
+}
+[data-style="sketch"] .brand { padding: 4px 16px; height: 50px; }
+[data-style="sketch"] .brand-mark { display: none; }
+[data-style="sketch"] .brand-name { font-family: var(--font-title); font-size: 28px; line-height: 1; }
+[data-style="sketch"] .brand-world::before { content: ""; }
+[data-style="sketch"] .tool-btn { border-radius: 999px; font-size: 14px; font-weight: 400; }
+[data-style="sketch"] .tool-btn[data-type] { background: var(--tb); }
+[data-style="sketch"] .tool-btn[data-type] svg { color: var(--tf); }
+[data-style="sketch"] .tool-btn[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: none; }
+[data-style="sketch"] .toolbar-right > .icon-btn { width: 50px; height: 50px; }
+[data-style="sketch"] .save-status { padding: 0 14px; height: 50px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); }
+[data-style="sketch"] .hint { font-family: var(--font-title); font-size: 20px; }
+
+/* ------------------------------------------------------------------ Leinwand */
+
+.canvas { position: absolute; inset: var(--canvas-top) 0 0 0; }
+
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-background-pattern-color: var(--dot);
+  --xy-edge-stroke: var(--edge);
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-edge-stroke-width: var(--edge-width);
+  --xy-connectionline-stroke: var(--accent);
+  --xy-connectionline-stroke-width: 2;
+  --xy-node-boxshadow-selected: none;
+}
+.react-flow__edge.selected .react-flow__edge-path { stroke-width: 2.5; }
+.react-flow__node-card:focus-visible { outline: none; }
+.react-flow__node-card:focus-visible .card { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.empty-hint {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted);
+  pointer-events: none;
+}
+[data-style="sketch"] .empty-hint { font-family: var(--font-title); font-size: 28px; line-height: 1.2; }
+
+/* ------------------------------------------------------------------ Karte */
+
+.card {
+  --tilt: 0;
+  position: relative;
+  width: 260px;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transform: rotate(calc(var(--tilt) * var(--tilt-max)));
+  transition: transform 120ms ease, outline-color 120ms ease;
+}
+.card.is-selected,
+.card.is-connect-target { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card.is-drop { outline: 2px dashed var(--accent); outline-offset: 4px; }
+
+[data-style="studio"] .card { border-top: 4px solid var(--tc); }
+[data-style="studio"] .card:has(.card-image) { border-top: 0; }
+
+[data-style="sketch"] .card { background: var(--tb); }
+[data-style="sketch"] .card[data-type="notiz"] { box-shadow: none; outline: 1.5px dashed var(--muted); outline-offset: 0; }
+[data-style="sketch"] .card[data-type="notiz"].is-selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-style="sketch"] .card:has(.card-image) { background: var(--surface); padding: 10px 10px 0; }
+
+.card-tape { display: none; }
+[data-style="sketch"] .card-tape {
+  display: block;
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 68px;
+  height: 20px;
+  background: var(--tape);
+  transform: translateX(-50%) rotate(calc(var(--tilt) * -4deg));
+  pointer-events: none;
+}
+[data-style="sketch"] .card[data-type="notiz"] .card-tape { display: none; }
+
+.card-image { position: relative; }
+.card-image img { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--radius) var(--radius) 0 0; }
+[data-style="sketch"] .card-image img { border-radius: 0; }
+.card-image-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.card:hover .card-image-remove,
+.card-image-remove:focus-visible { opacity: 1; }
+
+.card-body { padding: 14px 16px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+[data-style="sketch"] .card-body { padding: 16px 18px 14px; gap: 2px; }
+
+.card-type {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--pill);
+  background: var(--tb);
+  color: var(--tf);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.card-type select {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  field-sizing: content;
+}
+.card-type select:focus-visible { outline: none; }
+.card-type:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.card-type select option { color: #1e1e1c; background: #fff; }
+[data-style="sketch"] .card-type { padding: 0; background: transparent; font-size: 13px; }
+[data-style="sketch"] .card-type select { font-size: 13px; }
+
+.card-title,
+.card-text {
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  outline: none;
+}
+.card-title {
+  margin-top: 6px;
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  line-height: 1.2;
+}
+[data-style="sketch"] .card-title { margin-top: 0; line-height: 1.05; }
+.card-text {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--body);
+}
+.card-title::placeholder,
+.card-text::placeholder { color: var(--muted); opacity: 0.7; }
+.card-title:focus,
+.card-text:focus { box-shadow: 0 1px 0 var(--accent); }
+
+/* Anfasser zum Verbinden: Punkt rechts, sichtbar beim Darüberfahren */
+.react-flow__handle.handle-source {
+  width: 16px;
+  height: 16px;
+  right: -8px;
+  border: 2px solid var(--accent);
+  background: var(--surface);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.card:hover .handle-source,
+.card.is-selected .handle-source { opacity: 1; }
+
+/* Unsichtbares Ziel über der ganzen Karte, nur aktiv während eine Verbindung gezogen wird */
+.react-flow__handle.handle-target {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  transform: none;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow__handle.handle-target.is-active { pointer-events: all; }

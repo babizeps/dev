@@ -7,7 +7,7 @@ import type { Card, CardType, Edge, World } from "./types";
  * damit der spätere Sync jede Änderung erkennt.
  */
 
-export const newId = () => crypto.randomUUID();
+export const newId = (): string => crypto.randomUUID();
 
 export function liveCards(world: World): Card[] {
   return world.cards.filter((c) => c.deletedAt === null);
@@ -26,7 +26,7 @@ export interface NewCard {
   image?: string | null;
 }
 
-export function addCard(world: World, input: NewCard, now = Date.now(), id = newId()): World {
+export function addCard(world: World, input: NewCard, now = Date.now(), id: string = newId()): World {
   const card: Card = {
     id,
     boardId: ROOT_BOARD_ID,
@@ -57,7 +57,7 @@ export function updateCard(world: World, id: string, patch: CardPatch, now = Dat
   return changed ? { ...world, cards } : world;
 }
 
-export function connect(world: World, from: string, to: string, now = Date.now(), id = newId()): World {
+export function connect(world: World, from: string, to: string, now = Date.now(), id: string = newId()): World {
   if (from === to) return world;
   const live = new Set(liveCards(world).map((c) => c.id));
   if (!live.has(from) || !live.has(to)) return world;
