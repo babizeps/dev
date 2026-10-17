@@ -28,27 +28,6 @@
   --t-gegenstand: #7a5bc7; --t-gegenstand-fg: #5b3fa6; --t-gegenstand-bg: #eee7fb;
 }
 
-:root[data-style="studio"][data-mode="dark"] {
-  --bg: #0e1320;
-  --dot: #222b44;
-  --surface: #182033;
-  --surface-muted: #121828;
-  --border: #2a3550;
-  --text: #eef1f8;
-  --muted: #a9b3c9;
-  --body: #a9b3c9;
-  --accent: #7aa2ff;
-  --edge: #4b5b85;
-  --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-
-  --t-notiz: #b8c0d4;      --t-notiz-fg: #b8c0d4;      --t-notiz-bg: #232b3f;
-  --t-figur: #ff8a65;      --t-figur-fg: #ff8a65;      --t-figur-bg: #3a2620;
-  --t-ort: #4fd1a5;        --t-ort-fg: #4fd1a5;        --t-ort-bg: #173a33;
-  --t-fraktion: #7aa2ff;   --t-fraktion-fg: #7aa2ff;   --t-fraktion-bg: #1e2a4d;
-  --t-ereignis: #ffc857;   --t-ereignis-fg: #ffc857;   --t-ereignis-bg: #3a321a;
-  --t-gegenstand: #c7a6ff; --t-gegenstand-fg: #c7a6ff; --t-gegenstand-bg: #2e2447;
-}
-
 :root[data-style="sketch"][data-mode="light"] {
   --bg: #fafaf7;
   --dot: #cfcfc8;
@@ -71,6 +50,7 @@
   --t-gegenstand: #45307a; --t-gegenstand-fg: #45307a; --t-gegenstand-bg: #ebe2ff;
 }
 
+:root[data-style="studio"][data-mode="dark"],
 :root[data-style="sketch"][data-mode="dark"] {
   --bg: #1c1b18;
   --dot: #3a3832;
@@ -91,6 +71,12 @@
   --t-fraktion: #bccbff;   --t-fraktion-fg: #bccbff;   --t-fraktion-bg: #283350;
   --t-ereignis: #ffe08a;   --t-ereignis-fg: #ffe08a;   --t-ereignis-bg: #46391a;
   --t-gegenstand: #d6c6ff; --t-gegenstand-fg: #d6c6ff; --t-gegenstand-bg: #372b4f;
+}
+
+/* Studio nutzt die Skizze-Nachtfarben, aber mit dezenten Rahmen statt Tuschelinien */
+:root[data-style="studio"][data-mode="dark"] {
+  --border: #3a3832;
+  --t-notiz-bg: #3a3832;
 }
 
 :root,
