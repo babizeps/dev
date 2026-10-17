@@ -19,7 +19,7 @@ die App geschlossen und beim nächsten Start alles wieder da ist.
 
 | Stufe | Ziel | Features |
 |---|---|---|
-| 1 Sicher | echten Welten vertrauen | Tauri-Hülle mit Datei-Speicher, Rückgängig/Wiederholen, Backup, Bild per Strg+V, Kartengröße ändern |
+| 1 Sicher ✅ | echten Welten vertrauen | Tauri-Hülle mit Datei-Speicher, Rückgängig/Wiederholen, Backup, Bild per Strg+V, Kartenbreite ändern |
 | 2 Ordnung | Überblick bei 100+ Karten | Suche, Filter nach Typ, beschriftete Verbindungen, Unter-Boards |
 | 3 Worldbuilding | mehr als bunte Notizen | eigene Felder pro Typ, Detailansicht, `[[Verlinkungen]]`, Zufallsgenerator |
 | 4 Moodboard | Inspiration sammeln | Link-Karten mit Vorschau, Farbpalette aus Bild, Vorlagen, PNG-Export |
@@ -31,7 +31,8 @@ die App geschlossen und beim nächsten Start alles wieder da ist.
 ```
 UI (React + React Flow)          src/ui/
 Core (reines TypeScript)         src/core/     Typen, Operationen, Store, Migrationen
-Storage-Adapter (Interface)      src/storage/  IndexedDB (MVP) → Tauri-Dateien → Sync
+Storage-Adapter (Interface)      src/storage/  Tauri-Dateien (Desktop), IndexedDB (Browser) → später Sync
+Desktop-Hülle (Tauri 2)          src-tauri/    nur Fenster und Dateizugriff auf Dokumente/Worldboard
 ```
 
 - Der **Core** kennt weder React noch Tauri. Jede Änderung läuft über eine Operation in
@@ -42,3 +43,9 @@ Storage-Adapter (Interface)      src/storage/  IndexedDB (MVP) → Tauri-Dateien
 - **`schemaVersion`** plus `migrate()` erlauben spätere Formatänderungen. Eine unbekannte, neuere Version
   wird abgelehnt statt überschrieben.
 - Reservierte Felder für die Roadmap: `boardId` (Unter-Boards), `fields` (eigene Felder), `label` (Beschriftungen).
+- **Rückgängig** springt nicht einfach auf einen alten Stand zurück, sondern läuft über `restore()`:
+  Geänderte Datensätze bekommen einen neuen Zeitstempel, und neu angelegte werden als gelöscht markiert.
+  So überträgt der spätere Sync auch Rückgängig-Schritte richtig.
+- **Datei-Speicher** (`src/storage/fileStorage.ts`) schreibt zuerst in `world.json.tmp` und benennt dann um,
+  damit ein Absturz die Welt nicht zerstört. Er ist gegen eine Dateisystem-Schnittstelle geschrieben und
+  ohne Tauri getestet.

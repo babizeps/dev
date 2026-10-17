@@ -94,3 +94,17 @@ export const FitIcon = (props: IconProps) => (
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
   </Svg>
 );
+
+export const UndoIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+  </Svg>
+);
+
+export const RedoIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M15 14l5-5-5-5" />
+    <path d="M20 9H9a5 5 0 0 0 0 10h3" />
+  </Svg>
+);

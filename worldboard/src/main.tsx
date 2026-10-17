@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/manrope/400.css";
@@ -13,20 +14,26 @@ import { migrate } from "./core/migrations";
 import { useWorld } from "./core/store";
 import { createAutosave } from "./storage/autosave";
 import { createIndexedDbStorage } from "./storage/indexedDb";
+import type { StorageAdapter } from "./storage/StorageAdapter";
 import { App } from "./ui/App";
 import { StorageProvider } from "./ui/assets";
 import { applyStoredTheme } from "./ui/theme";
 
-const storage = createIndexedDbStorage();
 const root = createRoot(document.getElementById("root")!);
 applyStoredTheme();
 
-async function start() {
+async function openStorage(): Promise<StorageAdapter> {
+  if (isTauri()) return (await import("./storage/tauriFs")).createTauriStorage();
   // Bittet den Browser, den Speicher nicht von selbst aufzuräumen.
   navigator.storage?.persist?.().catch(() => {});
+  return createIndexedDbStorage();
+}
 
+async function start() {
+  let storage: StorageAdapter;
   let world;
   try {
+    storage = await openStorage();
     world = migrate(await storage.loadWorld());
   } catch (err) {
     // Nicht weiterarbeiten: sonst würde das Auto-Speichern die unlesbare Welt überschreiben.
@@ -50,6 +57,11 @@ async function start() {
     if (document.visibilityState === "hidden") void autosave.flush();
   });
   window.addEventListener("pagehide", () => void autosave.flush());
+  if (isTauri()) {
+    // Vor dem Schließen des Fensters alles Vorgemerkte schreiben.
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().onCloseRequested(() => autosave.flush());
+  }
 
   root.render(
     <StrictMode>

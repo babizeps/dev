@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Fenster schließen und Dateizugriff nur auf Dokumente/Worldboard",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-destroy",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-rename",
+    "fs:allow-remove",
+    "fs:allow-read-dir",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$DOCUMENT/Worldboard" }, { "path": "$DOCUMENT/Worldboard/**" }]
+    }
+  ]
+}

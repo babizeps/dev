@@ -12,15 +12,42 @@ miteinander verbinden. Plan, Roadmap und Architektur stehen in [PLAN.md](PLAN.md
 
 ## Starten
 
-Voraussetzung: [Node.js](https://nodejs.org) 20 oder neuer.
+### Als Desktop-App (für echte Welten)
+
+Voraussetzungen: [Node.js](https://nodejs.org) 20 oder neuer und die
+[Tauri-Voraussetzungen](https://tauri.app/start/prerequisites/) (Rust; unter macOS die Xcode Command Line Tools).
 
 ```bash
 cd worldboard
 npm install
+npm run desktop
+```
+
+Der erste Start kompiliert die App und dauert ein paar Minuten, danach geht es schnell.
+Eine fertige App zum Installieren baust du mit `npm run tauri build`.
+
+### Im Browser (zum Ausprobieren)
+
+```bash
 npm run dev
 ```
 
-Dann <http://localhost:1420> im Browser öffnen.
+Dann <http://localhost:1420> öffnen. Die Daten liegen hier nur im Browser-Speicher.
+
+## Wo liegt meine Welt?
+
+In der Desktop-App im Ordner **Dokumente/Worldboard**:
+
+```
+Worldboard/
+├── world.json   die Welt als lesbare Textdatei
+├── assets/      alle Bilder, benannt nach ihrem Inhalt
+└── backups/     eine Sicherung pro Tag, die letzten 14 bleiben erhalten
+```
+
+Den ganzen Ordner kannst du kopieren, um deine Welt zu sichern oder umzuziehen.
+Geht `world.json` kaputt, startet die App nicht mit einer leeren Welt, sondern zeigt
+einen Hinweis. Dann kopierst du die neueste Datei aus `backups/` zurück nach `world.json`.
 
 ## Bedienung
 
@@ -28,17 +55,14 @@ Dann <http://localhost:1420> im Browser öffnen.
 |---|---|
 | Neue Karte | Doppelklick auf die Leinwand oder Typ oben in der Leiste wählen |
 | Kartentyp ändern | Auf die Typ-Plakette in der Karte klicken |
-| Bild hinzufügen | Bilddatei auf eine Karte ziehen (oder auf die Leinwand für eine neue Karte) |
+| Bild hinzufügen | Bild auf eine Karte ziehen oder mit Strg+V einfügen (in die Karte, in der du schreibst oder die ausgewählt ist, sonst als neue Karte) |
 | Verbinden | Punkt rechts an der Karte auf eine andere Karte ziehen |
+| Breite ändern | Karte anklicken, Griff unten rechts ziehen |
 | Löschen | Karte oder Linie anklicken, dann Entf |
+| Rückgängig / Wiederholen | Strg+Z / Strg+Umschalt+Z (oder Strg+Y), auf dem Mac mit Cmd, oder die Pfeile oben |
 | Stil und Modus | Oben rechts: Studio/Skizze und Sonne/Mond |
 
-Alles wird automatisch gespeichert.
-
-> **Hinweis zum MVP:** Die Daten liegen im Speicher des Browsers (IndexedDB) und gehören
-> zu genau diesem Browser und dieser Adresse. Löschst du die Website-Daten, ist die Welt weg.
-> Für echte Welten kommt als nächster Schritt die Desktop-Hülle mit Tauri, die in eine Datei speichert
-> (Roadmap Stufe 1).
+Alles wird automatisch gespeichert, auch beim Schließen des Fensters.
 
 ## Entwickeln
 

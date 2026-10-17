@@ -18,6 +18,8 @@ export interface Card extends BaseRecord {
   type: CardType;
   x: number;
   y: number;
+  /** Breite in Pixeln; null = Standardbreite. Die Höhe ergibt sich aus dem Inhalt. */
+  width: number | null;
   title: string;
   text: string;
   /** Dateiname des Bildes im Asset-Speicher (Inhalts-Hash + Endung). */

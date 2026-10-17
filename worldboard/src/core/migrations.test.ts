@@ -11,7 +11,7 @@ describe("migrate", () => {
 
   it("ergänzt fehlende Felder und korrigiert unbekannte Typen", () => {
     const w = migrate({ cards: [{ id: "a", type: "drache", x: 3 }], edges: [{ id: "e", from: "a", to: "a" }, { id: "kaputt" }] });
-    expect(w.cards[0]).toEqual({ id: "a", boardId: "root", type: "notiz", x: 3, y: 0, title: "", text: "", image: null, fields: {}, updatedAt: 0, deletedAt: null });
+    expect(w.cards[0]).toEqual({ id: "a", boardId: "root", type: "notiz", x: 3, y: 0, width: null, title: "", text: "", image: null, fields: {}, updatedAt: 0, deletedAt: null });
     expect(w.edges.map((e) => e.id)).toEqual(["e"]);
     expect(w.boards[0].id).toBe(ROOT_BOARD_ID);
   });

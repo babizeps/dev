@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyWorld } from "./migrations";
-import { addCard, connect, liveCards, liveEdges, removeCards, removeEdges, updateCard } from "./world";
+import { addCard, connect, liveCards, liveEdges, moveCards, removeCards, removeEdges, restore, updateCard } from "./world";
 
 const base = () => {
   let w = emptyWorld(0);
@@ -12,7 +12,7 @@ const base = () => {
 describe("Karten", () => {
   it("legt eine Karte mit ID, Zeitstempel und Standardwerten an", () => {
     const [card] = liveCards(addCard(emptyWorld(0), { type: "notiz", x: 5, y: 6 }, 42, "x"));
-    expect(card).toMatchObject({ id: "x", boardId: "root", type: "notiz", x: 5, y: 6, title: "", text: "", image: null, fields: {}, updatedAt: 42, deletedAt: null });
+    expect(card).toMatchObject({ id: "x", boardId: "root", type: "notiz", x: 5, y: 6, width: null, title: "", text: "", image: null, fields: {}, updatedAt: 42, deletedAt: null });
   });
 
   it("setzt updatedAt bei Änderungen", () => {
@@ -61,5 +61,40 @@ describe("Verbindungen", () => {
     expect(w.edges[0].deletedAt).toBe(4);
     w = connect(w, "a", "b", 5, "e2");
     expect(liveEdges(w).map((e) => e.id)).toEqual(["e2"]);
+  });
+});
+
+describe("restore (Rückgängig)", () => {
+  it("stellt einen früheren Stand her und setzt nur geänderte Zeitstempel neu", () => {
+    const before = base();
+    const after = updateCard(before, "a", { title: "Mira Vell" }, 5);
+    const undone = restore(after, before, 9);
+    expect(liveCards(undone).map((c) => c.title)).toEqual(["Mira", "Hafen"]);
+    expect(undone.cards.find((c) => c.id === "a")?.updatedAt).toBe(9);
+    expect(undone.cards.find((c) => c.id === "b")).toBe(before.cards[1]);
+  });
+
+  it("markiert eine rückgängig gemachte neue Karte als gelöscht statt sie zu entfernen", () => {
+    const before = base();
+    const after = connect(addCard(before, { type: "ort", x: 0, y: 0 }, 5, "c"), "a", "c", 5, "e1");
+    const undone = restore(after, before, 9);
+    expect(undone.cards.find((c) => c.id === "c")).toMatchObject({ deletedAt: 9, updatedAt: 9 });
+    expect(undone.edges.find((e) => e.id === "e1")).toMatchObject({ deletedAt: 9, updatedAt: 9 });
+    expect(liveCards(undone).map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("holt eine gelöschte Karte samt Verbindung zurück", () => {
+    const before = connect(base(), "a", "b", 2, "e1");
+    const after = removeCards(before, ["a"], 5);
+    const undone = restore(after, before, 9);
+    expect(undone.cards.find((c) => c.id === "a")).toMatchObject({ deletedAt: null, updatedAt: 9 });
+    expect(liveEdges(undone).map((e) => e.id)).toEqual(["e1"]);
+  });
+});
+
+describe("moveCards", () => {
+  it("verschiebt mehrere Karten in einem Schritt", () => {
+    const w = moveCards(base(), [{ id: "a", x: 10, y: 20 }, { id: "b", x: 30, y: 40 }], 7);
+    expect(w.cards.map((c) => [c.x, c.y, c.updatedAt])).toEqual([[10, 20, 7], [30, 40, 7]]);
   });
 });

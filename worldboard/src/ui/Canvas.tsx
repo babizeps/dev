@@ -15,13 +15,14 @@ import { useWorld } from "../core/store";
 import type { Card, Edge } from "../core/types";
 import { liveCards, liveEdges } from "../core/world";
 import { firstImageFile, useStorage } from "./assets";
-import { CardNode, type CardNodeType } from "./CardNode";
+import { CARD_WIDTH, CardNode, type CardNodeType } from "./CardNode";
 import { FloatingEdge } from "./FloatingEdge";
 import type { ThemeMode } from "./theme";
 
 const nodeTypes = { card: CardNode };
 const edgeTypes = { floating: FloatingEdge };
-const CARD_WIDTH = 260;
+// Feste Referenz: React Flow meldet seine Tasten-Listener bei jeder neuen Liste neu an.
+const DELETE_KEYS = ["Delete", "Backspace"];
 
 /** Knoten aus den Karten ableiten und dabei den Ansichtszustand der alten Knoten behalten. */
 function toNodes(cards: Card[], prev: CardNodeType[]): CardNodeType[] {
@@ -34,6 +35,9 @@ function toNodes(cards: Card[], prev: CardNodeType[]): CardNodeType[] {
       type: "card",
       // Während des Ziehens zeigt React Flow die Live-Position; gespeichert wird beim Loslassen.
       position: old?.dragging ? old.position : { x: card.x, y: card.y },
+      // Die Breite kommt aus der Karte, die Höhe immer aus dem Inhalt.
+      width: old?.resizing ? old.width : (card.width ?? CARD_WIDTH),
+      height: undefined,
       data: { card },
     };
   });
@@ -50,9 +54,9 @@ function toEdges(links: Edge[], prev: FlowEdge[]): FlowEdge[] {
  */
 export function Canvas({ mode }: { mode: ThemeMode }) {
   const world = useWorld((s) => s.world);
-  const { addCard, updateCard, connect, removeCards, removeEdges } = useWorld.getState();
+  const { addCard, updateCard, moveCards, connect, remove } = useWorld.getState();
   const storage = useStorage();
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getNodes } = useReactFlow<CardNodeType>();
 
   const cards = useMemo(() => liveCards(world), [world]);
   const links = useMemo(() => liveEdges(world), [world]);
@@ -75,17 +79,43 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
   }, []);
 
   const onDelete: OnDelete<CardNodeType> = useCallback(
-    ({ nodes: deletedNodes, edges: deletedEdges }) => {
-      removeCards(deletedNodes.map((n) => n.id));
-      removeEdges(deletedEdges.map((e) => e.id));
-    },
-    [removeCards, removeEdges],
+    ({ nodes: deletedNodes, edges: deletedEdges }) =>
+      remove(
+        deletedNodes.map((n) => n.id),
+        deletedEdges.map((e) => e.id),
+      ),
+    [remove],
   );
 
-  const createAt = (clientX: number, clientY: number, image: string | null = null) => {
-    const p = screenToFlowPosition({ x: clientX, y: clientY });
-    addCard({ type: "notiz", x: p.x - CARD_WIDTH / 2, y: p.y - 40, image });
-  };
+  const createAt = useCallback(
+    (clientX: number, clientY: number, image: string | null = null) => {
+      const p = screenToFlowPosition({ x: clientX, y: clientY });
+      addCard({ type: "notiz", x: p.x - CARD_WIDTH / 2, y: p.y - 40, image });
+    },
+    [addCard, screenToFlowPosition],
+  );
+
+  // Bild aus der Zwischenablage: an die Karte, in der man gerade schreibt oder die ausgewählt ist,
+  // sonst als neue Karte in der Mitte der Ansicht.
+  useEffect(() => {
+    const onPaste = async (e: ClipboardEvent) => {
+      const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
+      if (!file) return;
+      e.preventDefault();
+      const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>(".react-flow__node")?.dataset.id;
+      const selected = getNodes().filter((n) => n.selected);
+      const target = focused ?? (selected.length === 1 ? selected[0].id : null);
+      const name = await storage.saveAsset(file);
+      if (target) {
+        updateCard(target, { image: name });
+      } else {
+        const rect = document.querySelector(".canvas")!.getBoundingClientRect();
+        createAt(rect.left + rect.width / 2, rect.top + rect.height / 2, name);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [createAt, getNodes, storage, updateCard]);
 
   const isPane = (target: EventTarget) => (target as HTMLElement).classList?.contains("react-flow__pane");
 
@@ -109,10 +139,10 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeDragStop={(_, __, dragged) => dragged.forEach((n) => updateCard(n.id, n.position))}
+        onNodeDragStop={(_, __, dragged) => moveCards(dragged.map((n) => ({ id: n.id, ...n.position })))}
         onConnect={(c) => connect(c.source, c.target)}
         onDelete={onDelete}
-        deleteKeyCode={["Delete", "Backspace"]}
+        deleteKeyCode={DELETE_KEYS}
         zoomOnDoubleClick={false}
         connectionRadius={40}
         minZoom={0.2}

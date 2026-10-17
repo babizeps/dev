@@ -33,6 +33,7 @@ export function addCard(world: World, input: NewCard, now = Date.now(), id: stri
     type: input.type,
     x: input.x,
     y: input.y,
+    width: null,
     title: input.title ?? "",
     text: "",
     image: input.image ?? null,
@@ -43,7 +44,7 @@ export function addCard(world: World, input: NewCard, now = Date.now(), id: stri
   return { ...world, cards: [...world.cards, card] };
 }
 
-export type CardPatch = Partial<Pick<Card, "type" | "title" | "text" | "image" | "x" | "y">>;
+export type CardPatch = Partial<Pick<Card, "type" | "title" | "text" | "image" | "x" | "y" | "width">>;
 
 export function updateCard(world: World, id: string, patch: CardPatch, now = Date.now()): World {
   let changed = false;
@@ -94,5 +95,41 @@ export function removeEdges(world: World, ids: string[], now = Date.now()): Worl
     edges: world.edges.map((e) =>
       remove.has(e.id) && e.deletedAt === null ? { ...e, deletedAt: now, updatedAt: now } : e,
     ),
+  };
+}
+
+export function moveCards(world: World, positions: { id: string; x: number; y: number }[], now = Date.now()): World {
+  return positions.reduce((w, p) => updateCard(w, p.id, { x: p.x, y: p.y }, now), world);
+}
+
+interface SyncRecord {
+  id: string;
+  updatedAt: number;
+  deletedAt: number | null;
+}
+
+function restoreRecords<T extends SyncRecord>(current: T[], target: T[], now: number): T[] {
+  const currentById = new Map(current.map((r) => [r.id, r]));
+  const targetIds = new Set(target.map((r) => r.id));
+  // Alles, was sich gegenüber jetzt ändert, bekommt einen neuen Zeitstempel.
+  const restored = target.map((r) => (currentById.get(r.id) === r ? r : { ...r, updatedAt: now }));
+  // Was es im Ziel noch nicht gab, wird nicht entfernt, sondern als gelöscht markiert.
+  for (const r of current) {
+    if (!targetIds.has(r.id)) restored.push(r.deletedAt === null ? { ...r, deletedAt: now, updatedAt: now } : r);
+  }
+  return restored;
+}
+
+/**
+ * Setzt die Welt auf einen früheren Stand zurück (Rückgängig/Wiederholen).
+ * Anders als ein einfaches Zurückspringen bleiben Zeitstempel und Gelöscht-Vermerke
+ * dabei korrekt, damit der spätere Sync auch Rückgängig-Schritte überträgt.
+ */
+export function restore(current: World, target: World, now = Date.now()): World {
+  return {
+    ...target,
+    boards: restoreRecords(current.boards, target.boards, now),
+    cards: restoreRecords(current.cards, target.cards, now),
+    edges: restoreRecords(current.edges, target.edges, now),
   };
 }

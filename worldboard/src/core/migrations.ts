@@ -54,6 +54,7 @@ export function migrate(raw: unknown): World {
     type: isCardType(c.type) ? c.type : "notiz",
     x: num(c.x),
     y: num(c.y),
+    width: numOrNull(c.width),
     title: str(c.title),
     text: str(c.text),
     image: typeof c.image === "string" ? c.image : null,

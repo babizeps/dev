@@ -181,8 +181,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tool-btn[data-type] svg { color: var(--tc); }
 .tool-btn[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 .icon-btn { padding: 0; font-size: 18px; }
+.tool-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
 
-.segmented { padding: 4px; border-radius: 10px; background: var(--surface-muted); }
+.segmented,
+.history { padding: 4px; border-radius: 10px; background: var(--surface-muted); }
 .toolbar-right > .icon-btn { background: var(--surface-muted); border-radius: 10px; width: 48px; height: 48px; }
 
 .save-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
@@ -261,7 +263,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .card {
   --tilt: 0;
   position: relative;
-  width: 260px;
+  width: 100%;
   background: var(--surface);
   color: var(--text);
   border-radius: var(--radius);
@@ -410,3 +412,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
   pointer-events: none;
 }
 .react-flow__handle.handle-target.is-active { pointer-events: all; }
+
+/* Breite ändern: Griff unten rechts an der ausgewählten Karte */
+.react-flow__resize-control.card-resize {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  transform: translate(-60%, -60%);
+  cursor: ew-resize;
+}
+.card-resize span {
+  position: absolute;
+  inset: 6px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  border-bottom-right-radius: 4px;
+}

@@ -1,4 +1,4 @@
-import { Handle, Position, useConnection, type Node, type NodeProps } from "@xyflow/react";
+import { Handle, NodeResizeControl, Position, useConnection, type Node, type NodeProps } from "@xyflow/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { CARD_TYPES } from "../core/cardTypes";
 import { useWorld } from "../core/store";
@@ -7,6 +7,10 @@ import { firstImageFile, useAssetUrl, useStorage } from "./assets";
 import { ChevronIcon, TypeIcon } from "./icons";
 
 export type CardNodeType = Node<{ card: Card }, "card">;
+
+export const CARD_WIDTH = 260;
+const MIN_WIDTH = 180;
+const MAX_WIDTH = 640;
 
 const MISSING: Card | undefined = undefined;
 
@@ -140,6 +144,18 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
         className={`handle-target${isConnectTarget ? " is-active" : ""}`}
       />
       <Handle type="source" position={Position.Right} className="handle-source" title="Ziehen zum Verbinden" />
+      {selected && (
+        <NodeResizeControl
+          position="bottom-right"
+          resizeDirection="horizontal"
+          minWidth={MIN_WIDTH}
+          maxWidth={MAX_WIDTH}
+          className="card-resize"
+          onResizeEnd={(_, p) => set({ width: Math.round(p.width) })}
+        >
+          <span aria-hidden="true" />
+        </NodeResizeControl>
+      )}
     </div>
   );
 }

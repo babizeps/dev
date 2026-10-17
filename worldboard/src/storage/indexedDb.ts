@@ -28,10 +28,12 @@ function run<T>(db: IDBDatabase, store: string, mode: IDBTransactionMode, op: (s
   });
 }
 
-/** Speicher im Browser (MVP). Für echte Welten kommt in Stufe 1 der Tauri-Dateispeicher. */
+/** Speicher im Browser, wenn die App ohne Tauri läuft (z. B. bei `npm run dev`). */
 export function createIndexedDbStorage(dbName = "worldboard"): StorageAdapter {
   const db = open(dbName);
   return {
+    location: "Browser-Speicher",
+
     async loadWorld() {
       return (await run(await db, WORLD_STORE, "readonly", (s) => s.get(WORLD_KEY))) ?? null;
     },

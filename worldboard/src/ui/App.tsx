@@ -1,9 +1,11 @@
 import { ReactFlowProvider, useReactFlow, useViewport } from "@xyflow/react";
+import { useEffect } from "react";
 import { CARD_TYPES } from "../core/cardTypes";
 import { useWorld } from "../core/store";
 import type { CardType } from "../core/types";
+import { useStorage } from "./assets";
 import { Canvas } from "./Canvas";
-import { CheckIcon, FitIcon, MoonIcon, SunIcon, TypeIcon } from "./icons";
+import { CheckIcon, FitIcon, MoonIcon, RedoIcon, SunIcon, TypeIcon, UndoIcon } from "./icons";
 import { useTheme, type ThemeStyle } from "./theme";
 
 const STYLES: { value: ThemeStyle; label: string }[] = [
@@ -17,6 +19,10 @@ function Toolbar({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const worldName = useWorld((s) => s.world.boards[0]?.name ?? "Meine Welt");
   const saveStatus = useWorld((s) => s.saveStatus);
   const addCard = useWorld((s) => s.addCard);
+  const canUndo = useWorld((s) => s.past.length > 0);
+  const canRedo = useWorld((s) => s.future.length > 0);
+  const { undo, redo } = useWorld.getState();
+  const { location } = useStorage();
   const { screenToFlowPosition } = useReactFlow();
 
   const addInView = (type: CardType) => {
@@ -46,7 +52,15 @@ function Toolbar({ theme }: { theme: ReturnType<typeof useTheme> }) {
       </nav>
 
       <div className="toolbar-right">
-        <span className={`save-status is-${saveStatus}`} role="status">
+        <div className="toolbar-group history">
+          <button type="button" className="tool-btn icon-btn" aria-label="Rückgängig" title="Rückgängig (Strg+Z)" disabled={!canUndo} onClick={undo}>
+            <UndoIcon />
+          </button>
+          <button type="button" className="tool-btn icon-btn" aria-label="Wiederholen" title="Wiederholen (Strg+Umschalt+Z)" disabled={!canRedo} onClick={redo}>
+            <RedoIcon />
+          </button>
+        </div>
+        <span className={`save-status is-${saveStatus}`} role="status" title={`Speicherort: ${location}`}>
           {saveStatus === "saved" && <CheckIcon size={15} />}
           {SAVE_LABEL[saveStatus]}
         </span>
@@ -102,14 +116,40 @@ function ZoomControl() {
   );
 }
 
+/** Strg/Cmd+Z, Strg/Cmd+Umschalt+Z und Strg+Y – überall, auch beim Tippen in einer Karte. */
+function useUndoShortcuts() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const isUndo = key === "z" && !e.shiftKey;
+      const isRedo = (key === "z" && e.shiftKey) || key === "y";
+      if (!isUndo && !isRedo) return;
+      e.preventDefault();
+      const { undo, redo, past, future } = useWorld.getState();
+      // Verschwindet die Karte, in der der Cursor steht, verschluckt der Browser das Loslassen
+      // der Taste – React Flow hielte sie dann für gedrückt und Entf ginge nicht mehr.
+      const target = isUndo ? past[past.length - 1] : future[future.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const cardId = active?.closest<HTMLElement>(".react-flow__node")?.dataset.id;
+      if (target && cardId && !target.cards.some((c) => c.id === cardId && c.deletedAt === null)) active?.blur();
+      if (isUndo) undo();
+      else redo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
+
 export function App() {
   const theme = useTheme();
+  useUndoShortcuts();
   return (
     <ReactFlowProvider>
       <div className="app">
         <Canvas mode={theme.mode} />
         <Toolbar theme={theme} />
-        <p className="hint">Doppelklick: neue Karte · Punkt rechts ziehen: verbinden · Entf: löschen</p>
+        <p className="hint">Doppelklick: neue Karte · Punkt rechts ziehen: verbinden · Entf: löschen · Strg+V: Bild einfügen</p>
         <ZoomControl />
       </div>
     </ReactFlowProvider>

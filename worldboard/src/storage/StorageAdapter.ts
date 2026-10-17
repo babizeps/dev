@@ -5,6 +5,8 @@ import type { World } from "../core/types";
  * damit Browser-Speicher, Tauri-Dateien und später Sync austauschbar sind.
  */
 export interface StorageAdapter {
+  /** Für Menschen lesbarer Speicherort, z. B. ein Ordnerpfad. */
+  location: string;
   /** Rohdaten oder null, wenn noch nichts gespeichert ist. Die Migration passiert im Core. */
   loadWorld(): Promise<unknown>;
   saveWorld(world: World): Promise<void>;
