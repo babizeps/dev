@@ -302,3 +302,20 @@ test("Trackpad: zwei Finger schieben die Leinwand, ohne zu zoomen", async ({ pag
   await expect.poll(async () => (await transform()).match(/-?[\d.]+/g)!.map(Number)).toEqual([1, 0, 0, 1, x0 - 120, y0 - 80]);
   await expect(page.locator(".zoom")).toHaveClass(/is-hidden/);
 });
+
+test("Trackpad: Schieben klappt auch, wenn der Zeiger über einer Karte steht", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  await page.keyboard.type("Titel");
+  await page.keyboard.press("Escape");
+  const transform = () => page.locator(".react-flow__viewport").evaluate((el) => getComputedStyle(el).transform);
+  const nums = async () => (await transform()).match(/-?[\d.]+/g)!.map(Number);
+  for (const part of [".card-title", ".card-text", ".card-type"]) {
+    const [, , , , x0, y0] = await nums();
+    const box = (await page.locator(part).first().boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(40, 30);
+    await expect.poll(nums, part).toEqual([1, 0, 0, 1, x0 - 40, y0 - 30]);
+    await page.waitForTimeout(300);
+  }
+});

@@ -142,7 +142,7 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
           onChange={(e) => set({ title: e.target.value })}
         />
         <AutoTextarea
-          className="card-text nodrag nowheel"
+          className="card-text nodrag"
           value={card.text}
           placeholder="Beschreibung …"
           aria-label="Beschreibung"
