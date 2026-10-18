@@ -265,7 +265,7 @@ test("Beim Verbinden zeigt die Leinwand das Plus des Stils", async ({ page }) =>
   await expect(page.locator(".react-flow.is-connecting")).toHaveCount(0);
 });
 
-test("Zoom: bei 100 % unsichtbar, Klick passt ein und geht zurück auf 100 %", async ({ page }) => {
+test("Zoom: bei 100 % unsichtbar, ein Klick setzt auf 100 % zurück", async ({ page }) => {
   await page.goto("/");
   const zoom = page.locator(".zoom");
   await expect(zoom).toHaveClass(/is-hidden/);
@@ -282,12 +282,10 @@ test("Zoom: bei 100 % unsichtbar, Klick passt ein und geht zurück auf 100 %", a
   await page.keyboard.up("Control");
 
   await expect(zoom).not.toHaveClass(/is-hidden/);
-  const button = zoom.getByRole("button");
-  await expect(button).toHaveAttribute("title", "Alles einpassen");
-  await button.click();
-  await expect(button).toHaveAttribute("title", "Zurück auf 100 %");
-  await button.click();
+  // Ein Klick setzt genau auf 100 % zurück
+  await zoom.getByRole("button").click();
   await expect(zoom).toHaveClass(/is-hidden/);
+  await expect(page.locator(".react-flow__viewport")).toHaveCSS("transform", /^matrix\(1, 0, 0, 1, /);
 });
 
 test("Trackpad: zwei Finger schieben die Leinwand, ohne zu zoomen", async ({ page }) => {

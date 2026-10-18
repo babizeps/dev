@@ -226,32 +226,23 @@ function Dock() {
   );
 }
 
-/**
- * Zoom: bei 100 % unsichtbar. Nach dem Zoomen erscheint nur die Prozentzahl;
- * ein Klick passt alles ein, ein weiterer Klick geht zurück auf 100 %.
- */
+/** Zoom: bei 100 % unsichtbar. Nach dem Zoomen erscheint nur die Prozentzahl; ein Klick setzt auf 100 % zurück. */
 function ZoomControl() {
-  const { fitView, zoomTo, getZoom } = useReactFlow();
+  const { zoomTo } = useReactFlow();
   const { zoom } = useViewport();
-  const [fittedZoom, setFittedZoom] = useState<number | null>(null);
   const percent = Math.round(zoom * 100);
   const hidden = percent === 100;
-  const fitted = fittedZoom !== null && Math.abs(zoom - fittedZoom) < 0.001;
-  const label = fitted ? "Zurück auf 100 %" : "Alles einpassen";
-
-  const toggle = async () => {
-    if (fitted) {
-      setFittedZoom(null);
-      await zoomTo(1, { duration: 200 });
-    } else {
-      await fitView({ maxZoom: 1, padding: 0.2, duration: 200 });
-      setFittedZoom(getZoom());
-    }
-  };
 
   return (
     <div className={`island zoom${hidden ? " is-hidden" : ""}`} aria-hidden={hidden || undefined}>
-      <button type="button" className="zoom-btn" aria-label={`${percent} %, ${label}`} title={label} tabIndex={hidden ? -1 : undefined} onClick={toggle}>
+      <button
+        type="button"
+        className="zoom-btn"
+        aria-label={`${percent} %, zurück auf 100 %`}
+        title="Zurück auf 100 %"
+        tabIndex={hidden ? -1 : undefined}
+        onClick={() => zoomTo(1, { duration: 200 })}
+      >
         {percent} %
       </button>
     </div>
