@@ -53,7 +53,7 @@ einen Hinweis. Dann kopierst du die neueste Datei aus `backups/` zurück nach `w
 
 | Aktion | So geht's |
 |---|---|
-| Neue Karte | Doppelklick auf die Leinwand oder einen Typ im Dock unten wählen |
+| Neue Karte | Doppelklick auf die Leinwand oder einen Typ im Dock wählen – das Dock erscheint, wenn die Maus an den unteren Fensterrand kommt |
 | Kartentyp ändern | Auf die Typ-Plakette in der Karte klicken oder bei ausgewählter Karte die Tasten 1–6 drücken |
 | Duplizieren | Karte anklicken, dann Strg/Cmd+D |
 | Bild hinzufügen | Bild auf eine Karte ziehen oder mit Strg+V einfügen (in die Karte, in der du schreibst oder die ausgewählt ist, sonst als neue Karte) |
@@ -62,7 +62,7 @@ einen Hinweis. Dann kopierst du die neueste Datei aus `backups/` zurück nach `w
 | Löschen | Karte oder Linie anklicken, dann Entf |
 | Rückgängig / Wiederholen | Strg+Z / Strg+Umschalt+Z (oder Strg+Y), auf dem Mac mit Cmd, oder die Pfeile im Dock |
 | Welt umbenennen | Oben links auf den Namen klicken und überschreiben |
-| Stil und Modus | Oben rechts auf Sonne bzw. Mond klicken: Studio/Skizze und Tag/Nacht |
+| Stil und Modus | Oben rechts auf Sonne bzw. Mond klicken: Studio/Skizze und Tag/Nacht/Auto (Auto folgt der Systemeinstellung) |
 
 Alles wird automatisch gespeichert, auch beim Schließen des Fensters. Der Punkt oben rechts zeigt den Stand:
 grün = gespeichert, grau = speichert gerade, rot = Fehler (dann steht dort auch ein Hinweis).

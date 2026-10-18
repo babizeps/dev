@@ -6,17 +6,18 @@ import type { CardType } from "../core/types";
 import { useStorage } from "./assets";
 import { Canvas } from "./Canvas";
 import { CardMenus } from "./CardMenus";
-import { FitIcon, MoonIcon, RedoIcon, SunIcon, TypeIcon, UndoIcon } from "./icons";
-import { useTheme, type ThemeMode, type ThemeStyle } from "./theme";
+import { AutoIcon, FitIcon, MoonIcon, RedoIcon, SunIcon, TypeIcon, UndoIcon } from "./icons";
+import { useTheme, type ModeSetting, type ThemeStyle } from "./theme";
 
 const STYLES: { value: ThemeStyle; label: string }[] = [
   { value: "studio", label: "Studio" },
   { value: "sketch", label: "Skizze" },
 ];
 
-const MODES: { value: ThemeMode; label: string; name: string }[] = [
+const MODES: { value: ModeSetting; label: string; name: string }[] = [
   { value: "light", label: "Tag", name: "Tagmodus" },
   { value: "dark", label: "Nacht", name: "Nachtmodus" },
+  { value: "auto", label: "Auto", name: "Automatisch wie das System" },
 ];
 
 const SAVE_LABEL = { saved: "Gespeichert", saving: "Speichert …", error: "Speichern fehlgeschlagen" };
@@ -97,16 +98,17 @@ function StatusIsland({ theme }: { theme: ReturnType<typeof useTheme> }) {
             ))}
           </div>
           <div className="view-menu-label">Modus</div>
-          <div className="segmented" role="group" aria-label="Modus">
+          <div className="segmented is-three" role="group" aria-label="Modus">
             {MODES.map((m) => (
               <button
                 key={m.value}
                 type="button"
                 aria-label={m.name}
-                aria-pressed={theme.mode === m.value}
-                onClick={() => theme.setMode(m.value)}
+                title={m.name}
+                aria-pressed={theme.modeSetting === m.value}
+                onClick={() => theme.setModeSetting(m.value)}
               >
-                {m.value === "dark" ? <MoonIcon size={15} /> : <SunIcon size={15} />}
+                {m.value === "dark" ? <MoonIcon size={15} /> : m.value === "auto" ? <AutoIcon size={15} /> : <SunIcon size={15} />}
                 {m.label}
               </button>
             ))}
@@ -117,8 +119,51 @@ function StatusIsland({ theme }: { theme: ReturnType<typeof useTheme> }) {
   );
 }
 
+/** So nah am unteren Rand muss die Maus kommen, damit das Dock erscheint. */
+const DOCK_REVEAL_PX = 120;
+const DOCK_HIDE_DELAY_MS = 500;
+
+/**
+ * Blendet das Dock ein, solange die Maus unten im Fenster ist oder ein Knopf darin den Fokus hat.
+ * Bei einer leeren Welt bleibt es sichtbar, damit der Einstieg auffindbar ist.
+ */
+function useDockVisible(dock: React.RefObject<HTMLDivElement | null>) {
+  const hasCards = useWorld((s) => s.world.cards.some((c) => c.deletedAt === null));
+  const [near, setNear] = useState(false);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    const onMove = (e: PointerEvent) => {
+      const inZone = e.clientY >= window.innerHeight - DOCK_REVEAL_PX || !!dock.current?.contains(e.target as Node);
+      if (inZone) {
+        clearTimeout(hideTimer);
+        hideTimer = undefined;
+        setNear(true);
+      } else if (!hideTimer) {
+        hideTimer = setTimeout(() => {
+          hideTimer = undefined;
+          setNear(false);
+        }, DOCK_HIDE_DELAY_MS);
+      }
+    };
+    const onLeave = () => setNear(false);
+    window.addEventListener("pointermove", onMove);
+    document.documentElement.addEventListener("pointerleave", onLeave);
+    return () => {
+      clearTimeout(hideTimer);
+      window.removeEventListener("pointermove", onMove);
+      document.documentElement.removeEventListener("pointerleave", onLeave);
+    };
+  }, [dock]);
+
+  return { visible: near || focused || !hasCards, setFocused };
+}
+
 /** Unten in der Mitte: neue Karten (mit Namen) sowie Rückgängig und Wiederholen. */
 function Dock() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { visible, setFocused } = useDockVisible(ref);
   const addCard = useWorld((s) => s.addCard);
   const canUndo = useWorld((s) => s.past.length > 0);
   const canRedo = useWorld((s) => s.future.length > 0);
@@ -135,7 +180,12 @@ function Dock() {
   };
 
   return (
-    <div className="dock">
+    <div
+      ref={ref}
+      className={`dock${visible ? "" : " is-hidden"}`}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setFocused(false)}
+    >
       <nav className="dock-group" aria-label="Neue Karte">
         {CARD_TYPES.map((t) => (
           <button

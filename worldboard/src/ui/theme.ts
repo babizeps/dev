@@ -1,10 +1,14 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type ThemeStyle = "studio" | "sketch";
+/** Der Modus, in dem gerade gezeichnet wird. */
 export type ThemeMode = "light" | "dark";
+/** Die Wahl im Ansicht-Menü; „auto“ folgt der Systemeinstellung. */
+export type ModeSetting = ThemeMode | "auto";
 
 const STYLE_KEY = "worldboard.style";
 const MODE_KEY = "worldboard.mode";
+const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 function read(key: string): string | null {
   try {
@@ -26,10 +30,17 @@ function initialStyle(): ThemeStyle {
   return read(STYLE_KEY) === "sketch" ? "sketch" : "studio";
 }
 
-function initialMode(): ThemeMode {
+function initialModeSetting(): ModeSetting {
   const stored = read(MODE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return stored === "light" || stored === "dark" ? stored : "auto";
+}
+
+function systemMode(): ThemeMode {
+  return window.matchMedia?.(DARK_QUERY).matches ? "dark" : "light";
+}
+
+function resolve(setting: ModeSetting): ThemeMode {
+  return setting === "auto" ? systemMode() : setting;
 }
 
 function apply(style: ThemeStyle, mode: ThemeMode) {
@@ -39,30 +50,35 @@ function apply(style: ThemeStyle, mode: ThemeMode) {
 
 /** Vor dem ersten Rendern aufrufen, damit nichts im falschen Theme aufblitzt. */
 export function applyStoredTheme() {
-  apply(initialStyle(), initialMode());
+  apply(initialStyle(), resolve(initialModeSetting()));
 }
 
 export function useTheme() {
   const [style, setStyleState] = useState(initialStyle);
-  const [mode, setModeState] = useState(initialMode);
+  const [modeSetting, setModeSettingState] = useState(initialModeSetting);
+  const [system, setSystem] = useState(systemMode);
+  const mode: ThemeMode = modeSetting === "auto" ? system : modeSetting;
 
-  const setStyle = useCallback(
-    (next: ThemeStyle) => {
-      setStyleState(next);
-      write(STYLE_KEY, next);
-      apply(next, mode);
-    },
-    [mode],
-  );
+  // Wechselt das System zwischen Tag und Nacht (z. B. macOS „Automatisch“), zieht die App mit.
+  useEffect(() => {
+    const query = window.matchMedia?.(DARK_QUERY);
+    if (!query) return;
+    const onChange = () => setSystem(query.matches ? "dark" : "light");
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
 
-  const setMode = useCallback(
-    (next: ThemeMode) => {
-      setModeState(next);
-      write(MODE_KEY, next);
-      apply(style, next);
-    },
-    [style],
-  );
+  useEffect(() => apply(style, mode), [style, mode]);
 
-  return { style, mode, setStyle, setMode };
+  const setStyle = useCallback((next: ThemeStyle) => {
+    setStyleState(next);
+    write(STYLE_KEY, next);
+  }, []);
+
+  const setModeSetting = useCallback((next: ModeSetting) => {
+    setModeSettingState(next);
+    write(MODE_KEY, next);
+  }, []);
+
+  return { style, mode, modeSetting, setStyle, setModeSetting };
 }

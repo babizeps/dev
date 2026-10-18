@@ -17,6 +17,13 @@ async function dropImage(page: Page, target: Locator, color: string) {
   await target.dispatchEvent("drop", { dataTransfer });
 }
 
+/** Das Dock erscheint erst, wenn die Maus unten im Fenster ist. */
+async function revealDock(page: Page) {
+  const { height, width } = page.viewportSize()!;
+  await page.mouse.move(width / 2, height - 10);
+  await expect(page.locator(".dock")).not.toHaveClass(/is-hidden/);
+}
+
 async function waitSaved(page: Page) {
   await expect(page.getByRole("status")).toHaveText("Gespeichert");
 }
@@ -39,6 +46,7 @@ test("Karten, Bild und Verbindung sind nach dem Neuladen noch da", async ({ page
   await expect(mira).toHaveAttribute("data-type", "figur");
 
   // Karte 2 über die Werkzeugleiste
+  await revealDock(page);
   await page.getByRole("navigation", { name: "Neue Karte" }).getByRole("button", { name: "Ort" }).click();
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(1).getByLabel("Titel")).toBeFocused();
@@ -158,4 +166,50 @@ test("Weltname direkt umbenennen; Status nur als Punkt", async ({ page }) => {
   await name.fill("");
   await name.blur();
   await expect(name).toHaveValue("Meine Welt");
+});
+
+test("Dock erscheint nur unten, bei leerer Welt immer", async ({ page }) => {
+  await page.goto("/");
+  const dock = page.locator(".dock");
+  // Leere Welt: Dock sichtbar
+  await page.mouse.move(640, 300);
+  await expect(dock).not.toHaveClass(/is-hidden/);
+
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  await expect(page.getByTestId("card")).toHaveCount(1);
+  await page.mouse.move(640, 300);
+  await expect(dock).toHaveClass(/is-hidden/);
+
+  await page.mouse.move(640, 790);
+  await expect(dock).not.toHaveClass(/is-hidden/);
+  // Über dem Dock bleibt es offen, weiter oben verschwindet es wieder
+  const box = (await dock.boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + 5);
+  await page.waitForTimeout(700);
+  await expect(dock).not.toHaveClass(/is-hidden/);
+  await page.mouse.move(640, 200);
+  await expect(dock).toHaveClass(/is-hidden/);
+});
+
+test("Auto-Modus folgt dem System", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  const html = page.locator("html");
+  // Ohne gespeicherte Wahl gilt Auto
+  await expect(html).toHaveAttribute("data-mode", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(html).toHaveAttribute("data-mode", "light");
+
+  await page.getByRole("button", { name: "Ansicht" }).click();
+  await expect(page.getByRole("button", { name: "Automatisch wie das System" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Nachtmodus" }).click();
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(html).toHaveAttribute("data-mode", "dark");
+
+  await page.getByRole("button", { name: "Automatisch wie das System" }).click();
+  await expect(html).toHaveAttribute("data-mode", "light");
+  await page.reload();
+  await expect(html).toHaveAttribute("data-mode", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(html).toHaveAttribute("data-mode", "dark");
 });

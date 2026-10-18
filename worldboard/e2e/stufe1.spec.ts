@@ -10,6 +10,13 @@ async function newCardWithTitle(page: Page, x: number, y: number, title: string)
   return card;
 }
 
+/** Das Dock erscheint erst, wenn die Maus unten im Fenster ist. */
+async function revealDock(page: Page) {
+  const { height, width } = page.viewportSize()!;
+  await page.mouse.move(width / 2, height - 10);
+  await expect(page.locator(".dock")).not.toHaveClass(/is-hidden/);
+}
+
 async function paste(page: Page, color: string) {
   await page.evaluate(async (fill) => {
     const canvas = document.createElement("canvas");
@@ -45,6 +52,7 @@ test("Rückgängig und Wiederholen per Tastatur und Knopf", async ({ page }) => 
 
   await page.keyboard.press("Control+Shift+z");
   await expect(cards).toHaveCount(1);
+  await revealDock(page);
   await redo.click();
   await expect(cards.first().getByLabel("Titel")).toHaveValue("Mira");
   await expect(redo).toBeDisabled();
@@ -53,6 +61,7 @@ test("Rückgängig und Wiederholen per Tastatur und Knopf", async ({ page }) => 
   await cards.first().click({ position: { x: 240, y: 10 } });
   await page.keyboard.press("Delete");
   await expect(cards).toHaveCount(0);
+  await revealDock(page);
   await undo.click();
   await expect(cards).toHaveCount(1);
   await expect(page.getByRole("status")).toHaveText("Gespeichert");

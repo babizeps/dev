@@ -261,12 +261,24 @@ button svg { flex-shrink: 0; }
   font-weight: 500;
   cursor: pointer;
 }
+.segmented.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .segmented button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 [data-style="sketch"] .segmented,
 [data-style="sketch"] .segmented button { border-radius: 999px; }
 [data-style="sketch"] .segmented button[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: none; }
 
-.dock { left: 50%; bottom: 16px; transform: translateX(-50%); gap: 2px; padding: 6px; border-radius: 16px; }
+.dock {
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+/* Ausgeblendet gleitet das Dock unter den Fensterrand; es erscheint, sobald die Maus unten ist. */
+.dock.is-hidden { transform: translate(-50%, calc(100% + 24px)); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .dock { transition: opacity 120ms linear; } }
 [data-style="sketch"] .dock { padding: 6px 10px; }
 .dock-group { display: flex; gap: 2px; }
 .dock-separator { width: 1px; height: 34px; margin: 0 6px; background: var(--border); flex-shrink: 0; }
@@ -298,10 +310,12 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
 [data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
 
-.zoom { right: 16px; bottom: 16px; padding: 4px; gap: 0; }
+.zoom { right: 16px; bottom: 16px; padding: 4px; gap: 0; transition: bottom 200ms ease; }
 .zoom-value { min-width: 52px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
 /* Bei schmalen Fenstern rückt der Zoom über das Dock, damit sich beide nicht überlappen */
-@media (max-width: 1080px) { .zoom { bottom: 94px; } }
+@media (max-width: 1080px) { .dock:not(.is-hidden) ~ .zoom { bottom: 94px; } }
+/* Ohne Maus (Touch) gibt es kein Darüberfahren: dort bleibt das Dock sichtbar. */
+@media (hover: none) { .dock.is-hidden { transform: translateX(-50%); opacity: 1; pointer-events: auto; } }
 
 /* ------------------------------------------------------------------ Leinwand */
 
