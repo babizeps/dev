@@ -531,6 +531,11 @@ button svg { flex-shrink: 0; }
 .card-title:focus,
 .card-text:focus { box-shadow: 0 1px 0 var(--accent); }
 
+/* Beim Schieben und Zoomen: die Leinwand als eigene Grafikebene verschieben statt jedes Bild neu zu malen,
+   und Karten nicht auf den durchrutschenden Zeiger reagieren lassen. Danach wird wieder scharf gezeichnet. */
+.react-flow.is-moving .react-flow__viewport { will-change: transform; }
+.react-flow.is-moving .react-flow__node { pointer-events: none; }
+
 /* Anfasser zum Verbinden: Punkt rechts, sichtbar beim Darüberfahren */
 .react-flow__handle.handle-source {
   width: 16px;

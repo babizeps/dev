@@ -297,7 +297,8 @@ test("Trackpad: zwei Finger schieben die Leinwand, ohne zu zoomen", async ({ pag
   await page.mouse.move(640, 360);
   await page.mouse.wheel(120, 80);
   await expect.poll(transform).not.toBe(before);
-  // Maßstab bleibt 1 – nur verschoben
-  expect(await transform()).toMatch(/^matrix\(1, 0, 0, 1, /);
+  // Maßstab bleibt 1, und die Leinwand folgt den Fingern 1:1
+  const [, , , , x0, y0] = before.match(/-?[\d.]+/g)!.map(Number);
+  await expect.poll(async () => (await transform()).match(/-?[\d.]+/g)!.map(Number)).toEqual([1, 0, 0, 1, x0 - 120, y0 - 80]);
   await expect(page.locator(".zoom")).toHaveClass(/is-hidden/);
 });

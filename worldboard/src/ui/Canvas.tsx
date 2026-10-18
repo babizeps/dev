@@ -10,7 +10,7 @@ import {
   type NodeChange,
   type OnDelete,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CARD_TYPES } from "../core/cardTypes";
 import { useWorld } from "../core/store";
 import type { Card, Edge } from "../core/types";
@@ -70,6 +70,15 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
   const [fitOnStart] = useState(() => cards.length > 0);
   // Während eine Verbindung gezogen wird, zeigt die ganze Leinwand den Verbinden-Zeiger.
   const [connecting, setConnecting] = useState(false);
+  // Während die Leinwand geschoben oder gezoomt wird: eigene Ebene, keine Hover-Effekte auf Karten.
+  const [moving, setMoving] = useState(false);
+  const movingTimer = useRef<number | undefined>(undefined);
+  const markMoving = useCallback(() => {
+    setMoving(true);
+    window.clearTimeout(movingTimer.current);
+    movingTimer.current = window.setTimeout(() => setMoving(false), 200);
+  }, []);
+  useEffect(() => () => window.clearTimeout(movingTimer.current), []);
 
   useEffect(() => setNodes((prev) => toNodes(cards, prev)), [cards]);
   useEffect(() => setEdges((prev) => toEdges(links, prev)), [links]);
@@ -173,13 +182,18 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         onConnect={(c) => connect(c.source, c.target)}
         onConnectStart={() => setConnecting(true)}
         onConnectEnd={() => setConnecting(false)}
-        className={connecting ? "is-connecting" : undefined}
+        className={[connecting && "is-connecting", moving && "is-moving"].filter(Boolean).join(" ") || undefined}
         onDelete={onDelete}
-        onMoveStart={closeMenu}
+        onMoveStart={() => {
+          closeMenu();
+          markMoving();
+        }}
+        onMove={markMoving}
         deleteKeyCode={DELETE_KEYS}
         zoomOnDoubleClick={false}
         // Trackpad: zwei Finger schieben die Leinwand, Zusammenziehen zoomt (Strg/Cmd + Mausrad ebenso).
         panOnScroll
+        panOnScrollSpeed={1}
         connectionRadius={40}
         minZoom={0.2}
         maxZoom={2.5}
