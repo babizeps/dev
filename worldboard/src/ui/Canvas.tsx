@@ -11,12 +11,14 @@ import {
   type OnDelete,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CARD_TYPES } from "../core/cardTypes";
 import { useWorld } from "../core/store";
 import type { Card, Edge } from "../core/types";
 import { liveCards, liveEdges } from "../core/world";
 import { firstImageFile, useStorage } from "./assets";
 import { CARD_WIDTH, CardNode, type CardNodeType } from "./CardNode";
 import { FloatingEdge } from "./FloatingEdge";
+import { useMenu } from "./menuState";
 import type { ThemeMode } from "./theme";
 
 const nodeTypes = { card: CardNode };
@@ -54,7 +56,9 @@ function toEdges(links: Edge[], prev: FlowEdge[]): FlowEdge[] {
  */
 export function Canvas({ mode }: { mode: ThemeMode }) {
   const world = useWorld((s) => s.world);
-  const { addCard, updateCard, moveCards, connect, remove } = useWorld.getState();
+  const { addCard, updateCard, moveCards, connect, remove, duplicate } = useWorld.getState();
+  const openMenu = useMenu((s) => s.open);
+  const closeMenu = useMenu((s) => s.close);
   const storage = useStorage();
   const { screenToFlowPosition, getNodes } = useReactFlow<CardNodeType>();
 
@@ -117,6 +121,31 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
     return () => window.removeEventListener("paste", onPaste);
   }, [createAt, getNodes, storage, updateCard]);
 
+  // Tasten 1–6 setzen den Typ, Strg/Cmd+D dupliziert – für die eine ausgewählte Karte (oder die mit offenem Menü).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest("input, textarea, select, [contenteditable]")) return;
+      const selected = getNodes().filter((n) => n.selected);
+      const target = useMenu.getState().menu?.cardId ?? (selected.length === 1 ? selected[0].id : null);
+      if (!target) return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        duplicate(target);
+        closeMenu();
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const type = CARD_TYPES[Number(e.key) - 1]?.type;
+      if (!type) return;
+      e.preventDefault();
+      updateCard(target, { type });
+      closeMenu();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [closeMenu, duplicate, getNodes, updateCard]);
+
   const isPane = (target: EventTarget) => (target as HTMLElement).classList?.contains("react-flow__pane");
 
   return (
@@ -142,6 +171,11 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         onNodeDragStop={(_, __, dragged) => moveCards(dragged.map((n) => ({ id: n.id, ...n.position })))}
         onConnect={(c) => connect(c.source, c.target)}
         onDelete={onDelete}
+        onNodeContextMenu={(e, node) => {
+          e.preventDefault();
+          openMenu({ kind: "context", cardId: node.id, x: e.clientX, y: e.clientY });
+        }}
+        onMoveStart={closeMenu}
         deleteKeyCode={DELETE_KEYS}
         zoomOnDoubleClick={false}
         connectionRadius={40}

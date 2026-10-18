@@ -4,6 +4,7 @@ import type { World } from "./types";
 import {
   addCard,
   connect,
+  duplicateCard,
   moveCards,
   removeCards,
   removeEdges,
@@ -37,6 +38,8 @@ interface WorldState {
   updateCard: (id: string, patch: CardPatch) => void;
   moveCards: (positions: { id: string; x: number; y: number }[]) => void;
   connect: (from: string, to: string) => void;
+  /** Kopiert eine Karte und gibt die neue ID zurück. */
+  duplicate: (id: string) => string;
   remove: (cardIds: string[], edgeIds: string[]) => void;
   undo: () => void;
   redo: () => void;
@@ -84,6 +87,11 @@ export const useWorld = create<WorldState>()((set, get) => {
     },
     moveCards: (positions) => commit(moveCards(get().world, positions)),
     connect: (from, to) => commit(connect(get().world, from, to)),
+    duplicate: (id) => {
+      const newId = crypto.randomUUID();
+      commit(duplicateCard(get().world, id, Date.now(), newId));
+      return newId;
+    },
     remove: (cardIds, edgeIds) => commit(removeEdges(removeCards(get().world, cardIds), edgeIds)),
     undo: () => {
       const { world, past, future } = get();

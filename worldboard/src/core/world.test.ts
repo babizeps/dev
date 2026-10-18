@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyWorld } from "./migrations";
-import { addCard, connect, liveCards, liveEdges, moveCards, removeCards, removeEdges, restore, updateCard } from "./world";
+import { addCard, connect, duplicateCard, liveCards, liveEdges, moveCards, removeCards, removeEdges, restore, updateCard } from "./world";
 
 const base = () => {
   let w = emptyWorld(0);
@@ -96,5 +96,20 @@ describe("moveCards", () => {
   it("verschiebt mehrere Karten in einem Schritt", () => {
     const w = moveCards(base(), [{ id: "a", x: 10, y: 20 }, { id: "b", x: 30, y: 40 }], 7);
     expect(w.cards.map((c) => [c.x, c.y, c.updatedAt])).toEqual([[10, 20, 7], [30, 40, 7]]);
+  });
+});
+
+describe("duplicateCard", () => {
+  it("kopiert Inhalt und Breite versetzt, aber nicht die Verbindungen", () => {
+    let w = updateCard(connect(base(), "a", "b", 2, "e1"), "a", { text: "Schmugglerin", width: 320 }, 3);
+    w = duplicateCard(w, "a", 9, "a2");
+    expect(w.cards.find((c) => c.id === "a2")).toMatchObject({ title: "Mira", text: "Schmugglerin", width: 320, x: 32, y: 32, updatedAt: 9, deletedAt: null });
+    expect(liveEdges(w).map((e) => e.id)).toEqual(["e1"]);
+  });
+
+  it("ignoriert gelöschte oder fehlende Karten", () => {
+    const w = removeCards(base(), ["a"], 5);
+    expect(duplicateCard(w, "a", 9)).toBe(w);
+    expect(duplicateCard(w, "fehlt", 9)).toBe(w);
   });
 });

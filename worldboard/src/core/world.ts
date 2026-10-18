@@ -133,3 +133,11 @@ export function restore(current: World, target: World, now = Date.now()): World 
     edges: restoreRecords(current.edges, target.edges, now),
   };
 }
+
+/** Kopiert eine Karte leicht versetzt, ohne ihre Verbindungen. */
+export function duplicateCard(world: World, id: string, now = Date.now(), newCardId: string = newId()): World {
+  const card = world.cards.find((c) => c.id === id && c.deletedAt === null);
+  if (!card) return world;
+  const copy = { ...card, id: newCardId, x: card.x + 32, y: card.y + 32, fields: { ...card.fields }, updatedAt: now };
+  return { ...world, cards: [...world.cards, copy] };
+}

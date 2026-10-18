@@ -1,11 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function newCardWithTitle(page: Page, x: number, y: number, title: string) {
+  const cards = page.getByTestId("card");
+  const index = await cards.count();
   await page.locator(".react-flow__pane").dblclick({ position: { x, y } });
-  const title_ = page.getByTestId("card").last().getByLabel("Titel");
-  await expect(title_).toBeFocused();
+  const card = cards.nth(index);
+  await expect(card.getByLabel("Titel")).toBeFocused();
   await page.keyboard.type(title);
-  return page.getByTestId("card").last();
+  return card;
 }
 
 async function paste(page: Page, color: string) {

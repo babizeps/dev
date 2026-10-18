@@ -34,11 +34,12 @@ test("Karten, Bild und Verbindung sind nach dem Neuladen noch da", async ({ page
   const mira = cards.nth(0);
   await expect(mira.getByLabel("Titel")).toHaveValue("Mira Vell");
   await mira.getByLabel("Beschreibung").fill("Schmugglerin.\nKennt jede Bucht.");
-  await mira.getByLabel("Kartentyp").selectOption("figur");
+  await mira.getByRole("button", { name: /^Kartentyp/ }).click();
+  await page.getByRole("menuitemradio", { name: "Figur" }).click();
   await expect(mira).toHaveAttribute("data-type", "figur");
 
   // Karte 2 über die Werkzeugleiste
-  await page.getByRole("button", { name: "Ort", exact: true }).click();
+  await page.getByRole("navigation", { name: "Neue Karte" }).getByRole("button", { name: "Ort" }).click();
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(1).getByLabel("Titel")).toBeFocused();
   await page.keyboard.type("Hafen von Saltmere");

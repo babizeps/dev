@@ -5,6 +5,7 @@ import { useWorld } from "../core/store";
 import type { CardType } from "../core/types";
 import { useStorage } from "./assets";
 import { Canvas } from "./Canvas";
+import { CardMenus } from "./CardMenus";
 import { CheckIcon, FitIcon, MoonIcon, RedoIcon, SunIcon, TypeIcon, UndoIcon } from "./icons";
 import { useTheme, type ThemeStyle } from "./theme";
 
@@ -149,8 +150,9 @@ export function App() {
       <div className="app">
         <Canvas mode={theme.mode} />
         <Toolbar theme={theme} />
-        <p className="hint">Doppelklick: neue Karte · Punkt rechts ziehen: verbinden · Entf: löschen · Strg+V: Bild einfügen</p>
+        <p className="hint">Doppelklick: neue Karte · Punkt rechts ziehen: verbinden · 1–6: Typ · Rechtsklick: mehr</p>
         <ZoomControl />
+        <CardMenus />
       </div>
     </ReactFlowProvider>
   );

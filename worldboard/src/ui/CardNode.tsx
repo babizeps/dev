@@ -1,10 +1,21 @@
-import { Handle, NodeResizeControl, Position, useConnection, type Node, type NodeProps } from "@xyflow/react";
+import {
+  Handle,
+  NodeResizeControl,
+  NodeToolbar,
+  Position,
+  useConnection,
+  useStore,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { CARD_TYPES } from "../core/cardTypes";
+import { cardTypeLabel } from "../core/cardTypes";
 import { useWorld } from "../core/store";
-import type { Card, CardType } from "../core/types";
+import type { Card } from "../core/types";
 import { firstImageFile, useAssetUrl, useStorage } from "./assets";
-import { ChevronIcon, TypeIcon } from "./icons";
+import { ChevronIcon, MoreIcon, TypeIcon } from "./icons";
+import { useMenu } from "./menuState";
+import { TypeDots } from "./TypeDots";
 
 export type CardNodeType = Node<{ card: Card }, "card">;
 
@@ -43,6 +54,9 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
   const imageUrl = useAssetUrl(card.image);
   const titleRef = useRef<HTMLInputElement>(null);
   const [dropActive, setDropActive] = useState(false);
+  const openMenu = useMenu((s) => s.open);
+  const menuOpenHere = useMenu((s) => s.menu?.cardId === id);
+  const onlySelected = useStore((s) => s.nodes.reduce((n, node) => n + (node.selected ? 1 : 0), 0) === 1);
 
   // Während eine Verbindung gezogen wird, wird die ganze Karte zum Ziel.
   const connection = useConnection();
@@ -106,21 +120,23 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
         </div>
       )}
       <div className="card-body">
-        <label className="card-type nodrag">
+        <button
+          type="button"
+          className="card-type nodrag"
+          data-menu-trigger
+          aria-haspopup="menu"
+          aria-expanded={menuOpenHere}
+          aria-label={`Kartentyp: ${cardTypeLabel(card.type)}`}
+          onClick={(e) => {
+            if (menuOpenHere) return useMenu.getState().close();
+            const r = e.currentTarget.getBoundingClientRect();
+            openMenu({ kind: "type", cardId: id, x: r.left - 4, y: r.bottom + 6 });
+          }}
+        >
           <TypeIcon type={card.type} size={13} />
-          <select
-            value={card.type}
-            aria-label="Kartentyp"
-            onChange={(e) => set({ type: e.target.value as CardType })}
-          >
-            {CARD_TYPES.map((t) => (
-              <option key={t.type} value={t.type}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          {cardTypeLabel(card.type)}
           <ChevronIcon size={12} />
-        </label>
+        </button>
         <input
           ref={titleRef}
           className="card-title nodrag"
@@ -144,6 +160,26 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
         className={`handle-target${isConnectTarget ? " is-active" : ""}`}
       />
       <Handle type="source" position={Position.Right} className="handle-source" title="Ziehen zum Verbinden" />
+      <NodeToolbar isVisible={selected && onlySelected && !menuOpenHere} position={Position.Top} offset={14} align="start">
+        <div className="card-toolbar">
+          <TypeDots current={card.type} onPick={(type) => set({ type })} />
+          <span className="card-toolbar-separator" aria-hidden="true" />
+          <button
+            type="button"
+            className="type-dot is-more"
+            data-menu-trigger
+            aria-label="Weitere Aktionen"
+            aria-haspopup="menu"
+            data-tip="Weitere Aktionen"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openMenu({ kind: "context", cardId: id, x: r.left, y: r.bottom + 8 });
+            }}
+          >
+            <MoreIcon size={16} />
+          </button>
+        </div>
+      </NodeToolbar>
       {selected && (
         <NodeResizeControl
           position="bottom-right"
