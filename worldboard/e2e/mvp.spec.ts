@@ -424,3 +424,33 @@ test("Skizzenbuch: Karte in Handschrift, Textmarker beim Schreiben, Ansicht-MenÃ
   expect(await selected.evaluate((e) => getComputedStyle(e, "::after").opacity)).toBe("1");
   expect(await page.locator(".view-menu-label").first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain("Caveat");
 });
+
+test("Skizzenbuch: Tinte statt Violett, gekritzelter Verbindungspunkt, RÃ¶tel-Schimmer am Ziel", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("worldboard.style", "sketch"));
+  await page.reload();
+  const pane = page.locator(".react-flow__pane");
+  await pane.dblclick({ position: { x: 300, y: 250 } });
+  await page.keyboard.press("Escape");
+  await pane.dblclick({ position: { x: 800, y: 450 } });
+  await page.keyboard.press("Escape");
+  const cards = page.getByTestId("card");
+  await expect(cards).toHaveCount(2);
+
+  const accent = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
+  expect(accent).toBe("#26251f");
+  const handle = page.locator(".handle-source").first();
+  expect(await handle.evaluate((e) => getComputedStyle(e).backgroundImage)).toContain("svg");
+  await expect(handle).toHaveCSS("border-top-width", "0px");
+
+  await cards.nth(0).hover();
+  const h = (await handle.boundingBox())!;
+  const target = (await cards.nth(1).boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
+  const glowing = page.locator(".card.is-connect-target");
+  await expect(glowing).toHaveCount(1);
+  expect(await glowing.evaluate((e) => getComputedStyle(e).boxShadow)).toContain("rgba(194, 85, 45");
+  await page.mouse.up();
+});
