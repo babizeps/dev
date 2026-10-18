@@ -529,7 +529,7 @@ test("Studio: Tastatur-Fokus auf der Karte als feiner Rand mit weichem Ring", as
   expect(shadow).toContain("0px 0px 0px 6px");
 });
 
-test("Studio: beim Verbinden nur die Zielkarte unter dem Zeiger hervorheben", async ({ page }) => {
+test("Studio: beim Verbinden tragen Ziele den Ring der Startkarte, nur dichter", async ({ page }) => {
   await page.goto("/");
   const pane = page.locator(".react-flow__pane");
   for (const [x, y] of [[250, 200], [800, 220], [450, 520]]) {
@@ -538,17 +538,27 @@ test("Studio: beim Verbinden nur die Zielkarte unter dem Zeiger hervorheben", as
   }
   const cards = page.getByTestId("card");
   await expect(cards).toHaveCount(3);
-  await cards.nth(0).hover();
+  await cards.nth(0).click({ position: { x: 12, y: 8 } });
+  await expect(cards.nth(0)).toHaveClass(/is-selected/);
   const h = (await page.locator(".handle-source").first().boundingBox())!;
   const t = (await cards.nth(1).boundingBox())!;
   await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
   await page.mouse.down();
   await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 8 });
-  // Die dritte Karte ist ein mögliches Ziel, bekommt aber keinen Rahmen
+  // Mögliche Ziele: kein harter Rahmen, sondern der weiche Ring der Startkarte – nur dichter
+  const ringAlpha = async (i: number) => {
+    const shadow = await cards.nth(i).evaluate((e) => getComputedStyle(e).boxShadow);
+    // color-mix() wird als color(srgb r g b / a) ausgegeben
+    const m = shadow.match(/(?:\/ |, )([\d.]+)\) 0px 0px 0px 4px/);
+    return m ? Number(m[1]) : 0;
+  };
   await expect.poll(() => cards.nth(2).evaluate((e) => getComputedStyle(e).outlineColor)).toBe("rgba(0, 0, 0, 0)");
-  expect(await cards.nth(2).evaluate((e) => getComputedStyle(e).boxShadow)).not.toContain("0px 0px 0px 2px");
-  // Die Karte unter dem Zeiger bekommt den Ring
+  const source = await ringAlpha(0);
+  const target = await ringAlpha(2);
   await expect(cards.nth(1)).toHaveClass(/is-connect-hover/);
-  expect(await cards.nth(1).evaluate((e) => getComputedStyle(e).boxShadow)).toContain("0px 0px 0px 6px");
+  const hovered = await ringAlpha(1);
+  expect(source).toBeGreaterThan(0);
+  expect(target).toBeGreaterThan(source);
+  expect(hovered).toBeGreaterThan(target);
   await page.mouse.up();
 });

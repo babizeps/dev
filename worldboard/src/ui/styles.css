@@ -915,13 +915,14 @@ button svg { flex-shrink: 0; }
     var(--shadow);
 }
 
-/* Beim Verbinden: keine Rahmen um alle möglichen Ziele, nur die Karte unter dem Zeiger bekommt den Ring */
-[data-style="studio"] .card.is-connect-target { outline-color: transparent; }
+/* Beim Verbinden: mögliche Ziele tragen denselben weichen Ring wie die Startkarte, nur dichter;
+   die Karte unter dem Zeiger noch etwas dichter. */
+[data-style="studio"] .card.is-connect-target {
+  outline-color: transparent;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 42%, transparent), var(--shadow);
+}
 [data-style="studio"] .card.is-connect-hover {
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 0 0 6px color-mix(in srgb, var(--accent) 16%, transparent),
-    var(--shadow);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 68%, transparent), var(--shadow);
 }
 
 /* Verbindungspunkt: ein kleiner gefüllter Punkt, der beim Darüberfahren zum Plus wird.
