@@ -242,3 +242,25 @@ test("Eigene Mauszeiger je Stil, auch für Text", async ({ page }) => {
   await page.reload();
   expect(await cursorOf(".react-flow__pane")).not.toBe(studio);
 });
+
+test("Beim Verbinden zeigt die Leinwand das Plus des Stils", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  await expect(page.getByTestId("card")).toHaveCount(1);
+  const cursorOf = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).cursor);
+
+  const handleCursor = await cursorOf(".handle-source");
+  expect(handleCursor).toContain("data:image/svg+xml");
+  expect(handleCursor).toMatch(/, crosshair$/);
+  expect(await cursorOf(".react-flow__pane")).not.toBe(handleCursor);
+
+  await page.getByTestId("card").hover();
+  const box = (await page.locator(".handle-source").boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 200, box.y + 120, { steps: 5 });
+  await expect(page.locator(".react-flow.is-connecting")).toHaveCount(1);
+  expect(await cursorOf(".react-flow__pane")).toBe(handleCursor);
+  await page.mouse.up();
+  await expect(page.locator(".react-flow.is-connecting")).toHaveCount(0);
+});

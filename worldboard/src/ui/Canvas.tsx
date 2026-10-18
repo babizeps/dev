@@ -68,6 +68,8 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
   const [edges, setEdges] = useState<FlowEdge[]>(() => toEdges(links, []));
   // Nur beim Öffnen einer bestehenden Welt einpassen, nicht wenn die erste Karte entsteht.
   const [fitOnStart] = useState(() => cards.length > 0);
+  // Während eine Verbindung gezogen wird, zeigt die ganze Leinwand den Verbinden-Zeiger.
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => setNodes((prev) => toNodes(cards, prev)), [cards]);
   useEffect(() => setEdges((prev) => toEdges(links, prev)), [links]);
@@ -169,6 +171,9 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         onEdgesChange={onEdgesChange}
         onNodeDragStop={(_, __, dragged) => moveCards(dragged.map((n) => ({ id: n.id, ...n.position })))}
         onConnect={(c) => connect(c.source, c.target)}
+        onConnectStart={() => setConnecting(true)}
+        onConnectEnd={() => setConnecting(false)}
+        className={connecting ? "is-connecting" : undefined}
         onDelete={onDelete}
         onMoveStart={closeMenu}
         deleteKeyCode={DELETE_KEYS}
