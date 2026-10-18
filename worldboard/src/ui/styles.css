@@ -893,6 +893,55 @@ button svg { flex-shrink: 0; }
   box-shadow: 0 0 0 7px rgba(232, 128, 88, 0.3), 0 0 18px 6px rgba(232, 128, 88, 0.24);
 }
 
+/* ------------------------------------------------------------------ Studio: ruhige Auswahl */
+
+/* Beim Schreiben keine Linie – der Cursor zeigt, wo man ist. */
+[data-style="studio"] .card-title:focus,
+[data-style="studio"] .card-text:focus { box-shadow: none; }
+
+/* Ausgewählte Karte: ein weicher, heller Ring statt eines harten Rahmens */
+[data-style="studio"] .card.is-selected {
+  outline-color: transparent;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), var(--shadow);
+}
+
+/* Verbindungspunkt: ein kleiner gefüllter Punkt, der beim Darüberfahren zum Plus wird.
+   Die Trefferfläche bleibt 22 px groß, gezeichnet wird nur der Punkt in der Mitte. */
+[data-style="studio"] .react-flow__handle.handle-source {
+  width: 22px;
+  height: 22px;
+  right: -11px;
+  border: 0;
+  background: transparent;
+}
+[data-style="studio"] .react-flow__handle.handle-source::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent) center / 0 no-repeat;
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, -50%);
+  transition: width 120ms ease, height 120ms ease, background-size 120ms ease, box-shadow 120ms ease;
+  pointer-events: none;
+}
+[data-style="studio"] .react-flow__handle.handle-source:hover::before,
+[data-style="studio"] .react-flow__handle.handle-source.connectingfrom::before {
+  width: 22px;
+  height: 22px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 6v12M6 12h12%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.6%27 stroke-linecap=%27round%27/%3E%3C/svg%3E");
+  background-size: 12px;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Breiten-Griff erst zeigen, wenn die Maus in die Ecke kommt */
+[data-style="studio"] .card-resize span { opacity: 0; transition: opacity 120ms ease; }
+[data-style="studio"] .react-flow__resize-control.card-resize:hover span,
+[data-style="studio"] .react-flow__resize-control.card-resize:active span { opacity: 1; }
+
 /* ------------------------------------------------------------------ Mauszeiger */
 
 /* Eigene Zeiger je Stil: eine Pfeilspitze in der Akzentfarbe in Studio, eine Kompassnadel im Skizzenbuch.

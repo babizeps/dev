@@ -485,3 +485,31 @@ test("Skizzenbuch: Verbindungslinien sind von Hand gezogen, Studio bleibt glatt"
   await page.reload();
   expect(await page.locator(".react-flow__edge-path").first().getAttribute("d")).toBe(sketchD);
 });
+
+test("Studio: ruhige Auswahl – weicher Ring, Punkt statt Kreis, keine Linie beim Schreiben", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  const card = page.getByTestId("card");
+  const title = card.getByRole("textbox", { name: "Titel" });
+  await expect(title).toBeFocused();
+  // Beim Schreiben keine Linie
+  await expect(title).toHaveCSS("box-shadow", "none");
+  // Ausgewählt: kein harter Rahmen, sondern ein weicher Ring
+  await page.keyboard.press("Escape");
+  await card.click({ position: { x: 12, y: 8 } });
+  await expect(card).toHaveClass(/is-selected/);
+  await expect.poll(() => card.evaluate((e) => getComputedStyle(e).outlineColor)).toBe("rgba(0, 0, 0, 0)");
+  expect(await card.evaluate((e) => getComputedStyle(e).boxShadow)).toContain("0px 0px 0px 4px");
+  // Verbindungspunkt: kleiner Punkt, beim Darüberfahren groß mit Plus
+  const handle = page.locator(".handle-source");
+  const dot = () => handle.evaluate((e) => getComputedStyle(e, "::before").width);
+  expect(await dot()).toBe("10px");
+  await handle.hover();
+  await expect.poll(dot).toBe("22px");
+  // Breiten-Griff erst in der Ecke
+  const grip = page.locator(".card-resize span");
+  await card.hover({ position: { x: 30, y: 30 } });
+  await expect(grip).toHaveCSS("opacity", "0");
+  await page.locator(".card-resize").hover();
+  await expect(grip).toHaveCSS("opacity", "1");
+});
