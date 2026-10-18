@@ -905,6 +905,15 @@ button svg { flex-shrink: 0; }
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), var(--shadow);
 }
 
+/* Tastatur-Fokus auf der Karte (z. B. nach Esc): feiner fester Rand plus weicher Ring statt hartem Rahmen */
+[data-style="studio"] .react-flow__node-card:focus-visible .card {
+  outline-color: transparent;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--accent) 16%, transparent),
+    var(--shadow);
+}
+
 /* Verbindungspunkt: ein kleiner gefüllter Punkt, der beim Darüberfahren zum Plus wird.
    Die Trefferfläche bleibt 22 px groß, gezeichnet wird nur der Punkt in der Mitte. */
 [data-style="studio"] .react-flow__handle.handle-source {

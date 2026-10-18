@@ -513,3 +513,18 @@ test("Studio: ruhige Auswahl – weicher Ring, Punkt statt Kreis, keine Linie be
   await page.locator(".card-resize").hover();
   await expect(grip).toHaveCSS("opacity", "1");
 });
+
+test("Studio: Tastatur-Fokus auf der Karte als feiner Rand mit weichem Ring", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  await page.keyboard.type("Mira");
+  await page.keyboard.press("Escape");
+  // Nach Tastatureingaben gilt Fokus auf der Karte als Tastatur-Fokus
+  await page.locator(".react-flow__node-card").focus();
+  const card = page.getByTestId("card");
+  await expect(page.locator(".react-flow__node-card:focus-visible")).toHaveCount(1);
+  await expect.poll(() => card.evaluate((e) => getComputedStyle(e).outlineColor)).toBe("rgba(0, 0, 0, 0)");
+  const shadow = await card.evaluate((e) => getComputedStyle(e).boxShadow);
+  expect(shadow).toContain("0px 0px 0px 2px");
+  expect(shadow).toContain("0px 0px 0px 6px");
+});
