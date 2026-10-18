@@ -750,6 +750,121 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .card-menu-item:hover kbd,
 [data-style="sketch"] .card-menu-item:focus-visible kbd { opacity: 0.8; }
 
+/* ------------------------------------------------------------------ Skizzenbuch: Karte und Ansicht-Menü */
+
+/* Plakette und Beschreibung in derselben Handschrift wie der Titel */
+[data-style="sketch"] .card-type { height: auto; font-family: var(--font-title); font-size: 19px; font-weight: 600; }
+[data-style="sketch"] .card-text { font-family: var(--font-title); font-size: 20px; font-weight: 500; line-height: 1.2; }
+
+/* Beim Schreiben: ein zarter Textmarker hinter dem Feld statt einer Linie */
+[data-style="sketch"] .card-title:focus,
+[data-style="sketch"] .card-text:focus {
+  box-shadow: none;
+  background: color-mix(in srgb, #ffe48f 55%, transparent);
+  border-radius: 3px 8px 4px 9px;
+  margin-inline: -5px;
+  padding-inline: 5px;
+  width: calc(100% + 10px);
+}
+[data-mode="dark"][data-style="sketch"] .card-title:focus,
+[data-mode="dark"][data-style="sketch"] .card-text:focus { background: rgba(255, 228, 143, 0.16); }
+
+/* Ansicht-Menü als angeklebter Zettel */
+[data-style="sketch"] .view-menu {
+  padding: 20px 20px 14px;
+  gap: 10px;
+  border: 2px solid var(--border);
+  border-radius: 22px 8px 18px 10px / 10px 20px 8px 22px;
+  transform: rotate(-1deg);
+}
+[data-style="sketch"] .view-menu::before {
+  content: "";
+  position: absolute;
+  inset: -4px -3px -2px -5px;
+  border: 1.3px solid var(--border);
+  border-radius: inherit;
+  opacity: 0.5;
+  transform: rotate(0.7deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .view-menu::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 20px;
+  margin-left: -36px;
+  background: var(--tape);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .view-menu-label { font-family: var(--font-title); font-size: 26px; font-weight: 700; line-height: 1; }
+[data-style="sketch"] .view-menu-separator {
+  height: 10px;
+  margin: 4px 0 0;
+  background: var(--muted);
+  opacity: 0.6;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 200 10%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M2 5c25-2 45 1.5 70 0s45-2 70-.3 40 1.5 56-.4%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 200 10%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M2 5c25-2 45 1.5 70 0s45-2 70-.3 40 1.5 56-.4%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+/* Stile als kleine Polaroids */
+[data-style="sketch"] .style-tiles { gap: 18px; padding: 4px 6px 2px; }
+[data-style="sketch"] .style-tile {
+  position: relative;
+  gap: 2px;
+  padding: 7px 7px 4px;
+  background: var(--surface);
+  box-shadow: 0 2px 6px rgba(38, 37, 31, 0.16);
+  font-family: var(--font-title);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+  transform: rotate(-2deg);
+  transition: transform 120ms ease;
+}
+[data-style="sketch"] .style-tile:nth-child(2) { transform: rotate(1.5deg); }
+[data-style="sketch"] .style-tile:hover { transform: rotate(0deg) translateY(-2px); }
+[data-style="sketch"] .style-tile .style-preview,
+[data-style="sketch"] .style-tile:hover .style-preview,
+[data-style="sketch"] .style-tile[aria-pressed="true"] .style-preview { border-radius: 0; box-shadow: none; }
+[data-mode="dark"][data-style="sketch"] .style-tile { background: #3a3832; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+
+/* Modus: Symbol und Handschrift, ohne Kasten */
+[data-style="sketch"] .mode-tile {
+  position: relative;
+  height: 62px;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-title);
+  font-size: 21px;
+  font-weight: 600;
+}
+[data-style="sketch"] .mode-tile:hover { background: transparent; }
+[data-style="sketch"] .mode-tile[aria-pressed="true"] { background: transparent; color: var(--text); box-shadow: none; font-weight: 700; }
+
+/* Die Auswahl wird eingekreist; beim Darüberfahren deutet sich der Kringel schon an. */
+[data-style="sketch"] .style-tile::after,
+[data-style="sketch"] .mode-tile::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  background: var(--text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M55 4C80 4 97 18 96 50S78 97 48 96 3 80 4 49 25 2 62 7%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M55 4C80 4 97 18 96 50S78 97 48 96 3 80 4 49 25 2 62 7%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+[data-style="sketch"] .mode-tile::after { inset: 0 4px; }
+[data-style="sketch"] .style-tile:hover::after,
+[data-style="sketch"] .mode-tile:hover::after { opacity: 0.3; }
+[data-style="sketch"] .style-tile[aria-pressed="true"]::after,
+[data-style="sketch"] .mode-tile[aria-pressed="true"]::after { opacity: 1; }
+
 /* ------------------------------------------------------------------ Mauszeiger */
 
 /* Eigene Zeiger je Stil: eine Pfeilspitze in der Akzentfarbe in Studio, eine Kompassnadel im Skizzenbuch.

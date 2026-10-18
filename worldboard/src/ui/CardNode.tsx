@@ -6,7 +6,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { cardTypeLabel } from "../core/cardTypes";
 import { useWorld } from "../core/store";
 import type { Card } from "../core/types";
@@ -29,14 +29,36 @@ function tilt(id: string): number {
   return ((Math.abs(h) % 21) - 10) / 10;
 }
 
+/** Wächst mit dem Text – auch wenn sich Breite, Stil (Schrift) oder geladene Schriften ändern. */
 function AutoTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
+  const fit = useCallback(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [props.value]);
+  }, []);
+  useLayoutEffect(fit, [props.value, fit]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let width = el.offsetWidth;
+    const resize = new ResizeObserver(() => {
+      if (el.offsetWidth !== width) {
+        width = el.offsetWidth;
+        fit();
+      }
+    });
+    resize.observe(el);
+    const theme = new MutationObserver(fit);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-style"] });
+    document.fonts?.addEventListener("loadingdone", fit);
+    return () => {
+      resize.disconnect();
+      theme.disconnect();
+      document.fonts?.removeEventListener("loadingdone", fit);
+    };
+  }, [fit]);
   return <textarea ref={ref} rows={1} {...props} />;
 }
 

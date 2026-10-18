@@ -399,3 +399,28 @@ test("Skizzenbuch: Dock und Typ-Menü wie aus dem Skizzenbuch", async ({ page })
   await ort.hover();
   await expect(ort.locator("kbd")).not.toHaveCSS("opacity", "0");
 });
+
+test("Skizzenbuch: Karte in Handschrift, Textmarker beim Schreiben, Ansicht-Menü als Zettel", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("worldboard.style", "sketch"));
+  await page.reload();
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  const text = page.getByTestId("card").getByRole("textbox", { name: "Beschreibung" });
+  for (const el of [text, page.getByTestId("card").getByRole("button", { name: /^Kartentyp/ })]) {
+    expect(await el.evaluate((e) => getComputedStyle(e).fontFamily)).toContain("Caveat");
+  }
+  // Langer Text wird nicht abgeschnitten
+  await text.fill("Kartografin aus Vel Amar. Kennt jeden Pass im Nordgebirge und schuldet der Gilde noch drei Karten.");
+  expect(await text.evaluate((e) => e.scrollHeight - e.clientHeight)).toBeLessThanOrEqual(1);
+  // Fokus: Textmarker statt Linie
+  await expect(text).toHaveCSS("box-shadow", "none");
+  expect(await text.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+  await page.keyboard.press("Escape");
+
+  await page.locator(".status-island").hover();
+  await page.getByRole("button", { name: "Ansicht" }).click();
+  const selected = page.getByRole("button", { name: "Skizzenbuch" });
+  await expect(selected).toHaveAttribute("aria-pressed", "true");
+  expect(await selected.evaluate((e) => getComputedStyle(e, "::after").opacity)).toBe("1");
+  expect(await page.locator(".view-menu-label").first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain("Caveat");
+});
