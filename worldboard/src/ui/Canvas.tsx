@@ -178,6 +178,8 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         onMoveStart={closeMenu}
         deleteKeyCode={DELETE_KEYS}
         zoomOnDoubleClick={false}
+        // Trackpad: zwei Finger schieben die Leinwand, Zusammenziehen zoomt (Strg/Cmd + Mausrad ebenso).
+        panOnScroll
         connectionRadius={40}
         minZoom={0.2}
         maxZoom={2.5}

@@ -289,3 +289,17 @@ test("Zoom: bei 100 % unsichtbar, Klick passt ein und geht zurück auf 100 %", a
   await button.click();
   await expect(zoom).toHaveClass(/is-hidden/);
 });
+
+test("Trackpad: zwei Finger schieben die Leinwand, ohne zu zoomen", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  await page.keyboard.press("Escape");
+  const transform = () => page.locator(".react-flow__viewport").evaluate((el) => getComputedStyle(el).transform);
+  const before = await transform();
+  await page.mouse.move(640, 360);
+  await page.mouse.wheel(120, 80);
+  await expect.poll(transform).not.toBe(before);
+  // Maßstab bleibt 1 – nur verschoben
+  expect(await transform()).toMatch(/^matrix\(1, 0, 0, 1, /);
+  await expect(page.locator(".zoom")).toHaveClass(/is-hidden/);
+});

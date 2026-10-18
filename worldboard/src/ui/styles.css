@@ -363,22 +363,26 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
 [data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
 
-.zoom { right: 16px; bottom: 16px; padding: 3px; transition: bottom 200ms ease, opacity 160ms ease, transform 160ms ease; }
+/* Zoom ohne Insel: nur die Zahl, zart auf der Leinwand, beim Darüberfahren kräftiger */
+.island.zoom,
+[data-style="sketch"] .island.zoom { right: 12px; bottom: 12px; padding: 0; background: transparent; border: 0; box-shadow: none; transition: bottom 200ms ease, opacity 160ms ease, transform 160ms ease; }
 .zoom.is-hidden { opacity: 0; transform: translateY(6px); pointer-events: none; }
 .zoom-btn {
   height: 28px;
-  min-width: 56px;
-  padding: 0 10px;
+  min-width: 52px;
+  padding: 0 8px;
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: var(--text);
+  color: var(--muted);
+  opacity: 0.7;
   font: inherit;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease, color 120ms ease;
 }
-.zoom-btn:hover { background: var(--surface-muted); }
-[data-style="sketch"] .zoom-btn { border-radius: 999px; }
+.zoom-btn:hover,
+.zoom-btn:focus-visible { color: var(--text); opacity: 1; }
 /* Bei schmalen Fenstern rückt der Zoom über das Dock, damit sich beide nicht überlappen */
 @media (max-width: 1080px) { .dock:not(.is-hidden) ~ .zoom { bottom: 94px; } }
 /* Ohne Maus (Touch) gibt es kein Darüberfahren: dort bleibt das Dock sichtbar. */
