@@ -52,6 +52,8 @@
   --t-notiz: #5c5a52;      --t-notiz-fg: #5c5a52;      --t-notiz-bg: #ffffff;
   --t-figur: #5c3a2e;      --t-figur-fg: #5c3a2e;      --t-figur-bg: #ffe1d6;
   --t-ort: #2c5444;        --t-ort-fg: #2c5444;        --t-ort-bg: #d8f1e4;
+  /* Speicher-Punkt im selben Grün wie in Studio */
+  --saved: #2e8b6e;
   --t-fraktion: #2e3e6e;   --t-fraktion-fg: #2e3e6e;   --t-fraktion-bg: #dce5ff;
   --t-ereignis: #5e4a12;   --t-ereignis-fg: #5e4a12;   --t-ereignis-bg: #fff0c2;
   --t-gegenstand: #45307a; --t-gegenstand-fg: #45307a; --t-gegenstand-bg: #ebe2ff;
@@ -225,7 +227,7 @@ button svg { flex-shrink: 0; }
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-.save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--t-ort); flex-shrink: 0; transition: background 200ms ease; }
+.save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--saved, var(--t-ort)); flex-shrink: 0; transition: background 200ms ease; }
 .save-status.is-saving .save-dot { background: var(--muted); }
 .save-status.is-error { color: var(--danger); font-weight: 500; }
 .save-status.is-error .save-dot { background: var(--danger); }
