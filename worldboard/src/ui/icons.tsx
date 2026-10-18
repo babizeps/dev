@@ -89,12 +89,6 @@ export const ChevronIcon = (props: IconProps) => (
   </Svg>
 );
 
-export const FitIcon = (props: IconProps) => (
-  <Svg {...props}>
-    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-  </Svg>
-);
-
 export const UndoIcon = (props: IconProps) => (
   <Svg {...props}>
     <path d="M9 14L4 9l5-5" />

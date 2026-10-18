@@ -363,8 +363,22 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
 [data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
 
-.zoom { right: 16px; bottom: 16px; padding: 4px; gap: 0; transition: bottom 200ms ease; }
-.zoom-value { min-width: 52px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.zoom { right: 16px; bottom: 16px; padding: 3px; transition: bottom 200ms ease, opacity 160ms ease, transform 160ms ease; }
+.zoom.is-hidden { opacity: 0; transform: translateY(6px); pointer-events: none; }
+.zoom-btn {
+  height: 28px;
+  min-width: 56px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-btn:hover { background: var(--surface-muted); }
+[data-style="sketch"] .zoom-btn { border-radius: 999px; }
 /* Bei schmalen Fenstern rückt der Zoom über das Dock, damit sich beide nicht überlappen */
 @media (max-width: 1080px) { .dock:not(.is-hidden) ~ .zoom { bottom: 94px; } }
 /* Ohne Maus (Touch) gibt es kein Darüberfahren: dort bleibt das Dock sichtbar. */
@@ -632,6 +646,7 @@ button,
 .mode-tile,
 .dock-btn,
 .island-btn,
+.zoom-btn,
 .card-menu-item { cursor: var(--cursor, default); }
 button:disabled { cursor: var(--cursor, default); }
 input,

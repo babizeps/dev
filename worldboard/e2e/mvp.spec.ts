@@ -264,3 +264,28 @@ test("Beim Verbinden zeigt die Leinwand das Plus des Stils", async ({ page }) =>
   await page.mouse.up();
   await expect(page.locator(".react-flow.is-connecting")).toHaveCount(0);
 });
+
+test("Zoom: bei 100 % unsichtbar, Klick passt ein und geht zurück auf 100 %", async ({ page }) => {
+  await page.goto("/");
+  const zoom = page.locator(".zoom");
+  await expect(zoom).toHaveClass(/is-hidden/);
+
+  // Zwei weit auseinander liegende Karten, dann herauszoomen
+  const pane = page.locator(".react-flow__pane");
+  await pane.dblclick({ position: { x: 150, y: 150 } });
+  await page.keyboard.press("Escape");
+  await pane.dblclick({ position: { x: 1100, y: 600 } });
+  await page.keyboard.press("Escape");
+  await page.mouse.move(640, 360);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 400);
+  await page.keyboard.up("Control");
+
+  await expect(zoom).not.toHaveClass(/is-hidden/);
+  const button = zoom.getByRole("button");
+  await expect(button).toHaveAttribute("title", "Alles einpassen");
+  await button.click();
+  await expect(button).toHaveAttribute("title", "Zurück auf 100 %");
+  await button.click();
+  await expect(zoom).toHaveClass(/is-hidden/);
+});

@@ -6,7 +6,7 @@ import type { CardType } from "../core/types";
 import { useStorage } from "./assets";
 import { Canvas } from "./Canvas";
 import { CardMenus } from "./CardMenus";
-import { AutoIcon, FitIcon, MoonIcon, RedoIcon, SunIcon, TypeIcon, UndoIcon } from "./icons";
+import { AutoIcon, MoonIcon, RedoIcon, SunIcon, TypeIcon, UndoIcon } from "./icons";
 import { useTheme, type ModeSetting, type ThemeStyle } from "./theme";
 
 const STYLES: { value: ThemeStyle; label: string }[] = [
@@ -226,26 +226,33 @@ function Dock() {
   );
 }
 
+/**
+ * Zoom: bei 100 % unsichtbar. Nach dem Zoomen erscheint nur die Prozentzahl;
+ * ein Klick passt alles ein, ein weiterer Klick geht zurück auf 100 %.
+ */
 function ZoomControl() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const { fitView, zoomTo, getZoom } = useReactFlow();
   const { zoom } = useViewport();
+  const [fittedZoom, setFittedZoom] = useState<number | null>(null);
+  const percent = Math.round(zoom * 100);
+  const hidden = percent === 100;
+  const fitted = fittedZoom !== null && Math.abs(zoom - fittedZoom) < 0.001;
+  const label = fitted ? "Zurück auf 100 %" : "Alles einpassen";
+
+  const toggle = async () => {
+    if (fitted) {
+      setFittedZoom(null);
+      await zoomTo(1, { duration: 200 });
+    } else {
+      await fitView({ maxZoom: 1, padding: 0.2, duration: 200 });
+      setFittedZoom(getZoom());
+    }
+  };
+
   return (
-    <div className="island zoom">
-      <button type="button" className="island-btn" aria-label="Verkleinern" onClick={() => zoomOut()}>
-        −
-      </button>
-      <span className="zoom-value">{Math.round(zoom * 100)} %</span>
-      <button type="button" className="island-btn" aria-label="Vergrößern" onClick={() => zoomIn()}>
-        +
-      </button>
-      <button
-        type="button"
-        className="island-btn"
-        aria-label="Alles zeigen"
-        title="Alles zeigen"
-        onClick={() => fitView({ maxZoom: 1, padding: 0.2, duration: 200 })}
-      >
-        <FitIcon />
+    <div className={`island zoom${hidden ? " is-hidden" : ""}`} aria-hidden={hidden || undefined}>
+      <button type="button" className="zoom-btn" aria-label={`${percent} %, ${label}`} title={label} tabIndex={hidden ? -1 : undefined} onClick={toggle}>
+        {percent} %
       </button>
     </div>
   );
