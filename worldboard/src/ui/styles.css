@@ -361,6 +361,8 @@ button svg { flex-shrink: 0; }
 .dock-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
 [data-style="sketch"] .dock-btn { border-radius: 999px; min-width: 76px; font-family: var(--font-title); font-size: 17px; font-weight: 600; gap: 2px; }
 [data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
+/* Die Notiz-Farbe ist im Skizzenbuch die Papierfarbe selbst – beim Darüberfahren daher ein leichter Tintenschimmer. */
+[data-style="sketch"] .dock-btn[data-type="notiz"]:hover { background: color-mix(in srgb, var(--text) 9%, var(--surface)); }
 [data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
 
 /* Zoom ohne Insel: nur die Zahl, zart auf der Leinwand, beim Darüberfahren kräftiger */

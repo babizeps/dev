@@ -319,3 +319,20 @@ test("Trackpad: Schieben klappt auch, wenn der Zeiger über einer Karte steht", 
     await page.waitForTimeout(300);
   }
 });
+
+test("Dock: jeder Typ-Knopf leuchtet beim Darüberfahren auf, auch Notiz im Skizzenbuch", async ({ page }) => {
+  for (const style of ["studio", "sketch"]) {
+    for (const mode of ["light", "dark"]) {
+      await page.goto("/");
+      await page.evaluate(([s, m]) => { localStorage.setItem("worldboard.style", s); localStorage.setItem("worldboard.mode", m); }, [style, mode]);
+      await page.reload();
+      const dock = page.locator(".dock");
+      const surface = await dock.evaluate((el) => getComputedStyle(el).backgroundColor);
+      for (const btn of await page.locator(".dock-btn[data-type]").all()) {
+        await btn.hover();
+        const bg = await btn.evaluate((el) => getComputedStyle(el).backgroundColor);
+        expect(bg, `${style}/${mode} ${await btn.getAttribute("data-type")}`).not.toBe(surface);
+      }
+    }
+  }
+});
