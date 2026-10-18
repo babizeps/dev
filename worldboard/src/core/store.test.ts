@@ -81,3 +81,12 @@ describe("Rückgängig und Wiederholen", () => {
     expect(titles()).toEqual([]);
   });
 });
+
+describe("Weltname", () => {
+  it("benennt um und lässt sich rückgängig machen", () => {
+    state().renameWorld("Glasküste");
+    expect(state().world.boards[0].name).toBe("Glasküste");
+    state().undo();
+    expect(state().world.boards[0].name).toBe("Meine Welt");
+  });
+});

@@ -171,15 +171,30 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .island,
 [data-style="sketch"] .dock { border: 1.5px solid var(--border); box-shadow: none; border-radius: 999px; }
 
-.title-island { top: 14px; left: 16px; height: 44px; gap: 10px; padding: 0 16px 0 12px; white-space: nowrap; }
-.brand-mark { width: 20px; height: 20px; border-radius: 6px; background: var(--text); flex-shrink: 0; }
+.title-island { top: 14px; left: 16px; height: 44px; gap: 8px; padding: 0 8px 0 16px; white-space: nowrap; }
 .brand-name { font-weight: 700; font-size: 15px; }
-.brand-world { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-[data-style="sketch"] .title-island { padding: 0 18px; }
-[data-style="sketch"] .brand-mark { display: none; }
+[data-style="sketch"] .title-island { padding: 0 10px 0 18px; }
 [data-style="sketch"] .brand-name { font-family: var(--font-title); font-size: 26px; line-height: 1; }
 
-.status-island { top: 14px; right: 16px; height: 44px; gap: 6px; padding: 0 4px 0 14px; }
+.world-name { display: inline-grid; max-width: 320px; font-size: 14px; }
+.world-name::after,
+.world-name-input { grid-area: 1 / 1; padding: 4px 8px; font: inherit; }
+.world-name::after { content: attr(data-value); visibility: hidden; white-space: pre; overflow: hidden; }
+.world-name-input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  outline: none;
+}
+.world-name-input:hover { background: var(--surface-muted); }
+.world-name-input:focus { background: var(--surface-muted); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--accent); }
+[data-style="sketch"] .world-name-input { border-radius: 999px; }
+
+.status-island { top: 14px; right: 16px; height: 44px; gap: 6px; padding: 0 4px 0 12px; }
 [data-style="sketch"] .status-island { padding-right: 5px; }
 
 .island-btn {
@@ -200,8 +215,17 @@ button svg { flex-shrink: 0; }
 .island-btn[aria-expanded="true"] { background: var(--surface-muted); }
 [data-style="sketch"] .island-btn { border-radius: 999px; }
 
-.save-status { display: inline-flex; align-items: center; gap: 7px; margin-right: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
-.save-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--t-ort); flex-shrink: 0; }
+.save-status { display: inline-flex; align-items: center; gap: 7px; margin-right: 4px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+/* Normalerweise nur der Punkt; bei einem Fehler wird der Text sichtbar. */
+.save-status:not(.is-error) .save-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--t-ort); flex-shrink: 0; transition: background 200ms ease; }
 .save-status.is-saving .save-dot { background: var(--muted); }
 .save-status.is-error { color: var(--danger); font-weight: 500; }
 .save-status.is-error .save-dot { background: var(--danger); }
@@ -274,12 +298,8 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
 [data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
 
-.hint { position: absolute; z-index: 10; left: 20px; bottom: 22px; margin: 0; max-width: calc(50% - 330px); font-size: 13px; line-height: 1.4; color: var(--muted); }
-[data-style="sketch"] .hint { font-family: var(--font-title); font-size: 19px; }
 .zoom { right: 16px; bottom: 16px; padding: 4px; gap: 0; }
 .zoom-value { min-width: 52px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
-/* Ist neben dem Dock kein Platz, entfällt der Hinweis */
-@media (max-width: 1360px) { .hint { display: none; } }
 /* Bei schmalen Fenstern rückt der Zoom über das Dock, damit sich beide nicht überlappen */
 @media (max-width: 1080px) { .zoom { bottom: 94px; } }
 

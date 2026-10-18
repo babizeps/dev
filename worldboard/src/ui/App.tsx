@@ -21,14 +21,29 @@ const MODES: { value: ThemeMode; label: string; name: string }[] = [
 
 const SAVE_LABEL = { saved: "Gespeichert", saving: "Speichert …", error: "Speichern fehlgeschlagen" };
 
-/** Oben links: Name der App und der Welt. */
+const DEFAULT_WORLD_NAME = "Meine Welt";
+
+/** Oben links: Name der App und der Welt. Der Weltname lässt sich direkt überschreiben. */
 function TitleIsland() {
-  const worldName = useWorld((s) => s.world.boards[0]?.name ?? "Meine Welt");
+  const worldName = useWorld((s) => s.world.boards[0]?.name ?? DEFAULT_WORLD_NAME);
+  const renameWorld = useWorld((s) => s.renameWorld);
   return (
     <div className="island title-island">
-      <span className="brand-mark" aria-hidden="true" />
       <span className="brand-name">Worldboard</span>
-      <span className="brand-world">{worldName}</span>
+      {/* Das unsichtbare Spiegelbild im ::after gibt dem Feld genau die Breite seines Textes. */}
+      <span className="world-name" data-value={worldName || DEFAULT_WORLD_NAME}>
+        <input
+          className="world-name-input"
+          size={1}
+          value={worldName}
+          placeholder={DEFAULT_WORLD_NAME}
+          aria-label="Name der Welt"
+          spellCheck={false}
+          onChange={(e) => renameWorld(e.target.value)}
+          onBlur={() => !worldName.trim() && renameWorld(DEFAULT_WORLD_NAME)}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === "Escape") && e.currentTarget.blur()}
+        />
+      </span>
     </div>
   );
 }
@@ -56,7 +71,8 @@ function StatusIsland({ theme }: { theme: ReturnType<typeof useTheme> }) {
 
   return (
     <div className="island status-island" ref={ref}>
-      <span className={`save-status is-${saveStatus}`} role="status" title={`Speicherort: ${location}`}>
+      {/* Nur der Punkt ist sichtbar; der Text bleibt für Screenreader und steht im Tooltip. */}
+      <span className={`save-status is-${saveStatus}`} role="status" title={`${SAVE_LABEL[saveStatus]} · ${location}`}>
         <span className="save-dot" aria-hidden="true" />
         <span className="save-label">{SAVE_LABEL[saveStatus]}</span>
       </span>
@@ -208,7 +224,6 @@ export function App() {
         <TitleIsland />
         <StatusIsland theme={theme} />
         <Dock />
-        <p className="hint">Doppelklick: neue Karte · Punkt rechts: verbinden · 1–6: Typ · Rechtsklick: mehr</p>
         <ZoomControl />
         <CardMenus />
       </div>

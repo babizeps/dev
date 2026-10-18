@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { emptyWorld } from "./migrations";
+import { emptyWorld, ROOT_BOARD_ID } from "./migrations";
 import type { World } from "./types";
 import {
   addCard,
@@ -8,6 +8,7 @@ import {
   moveCards,
   removeCards,
   removeEdges,
+  renameBoard,
   restore,
   updateCard,
   type CardPatch,
@@ -41,6 +42,7 @@ interface WorldState {
   /** Kopiert eine Karte und gibt die neue ID zurück. */
   duplicate: (id: string) => string;
   remove: (cardIds: string[], edgeIds: string[]) => void;
+  renameWorld: (name: string) => void;
   undo: () => void;
   redo: () => void;
   clearFocus: () => void;
@@ -93,6 +95,8 @@ export const useWorld = create<WorldState>()((set, get) => {
       return newId;
     },
     remove: (cardIds, edgeIds) => commit(removeEdges(removeCards(get().world, cardIds), edgeIds)),
+    // Tippen im Namen wird wie bei Karten zu einem Rückgängig-Schritt gebündelt.
+    renameWorld: (name) => commit(renameBoard(get().world, ROOT_BOARD_ID, name), "world-name"),
     undo: () => {
       const { world, past, future } = get();
       const previous = past[past.length - 1];

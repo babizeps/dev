@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyWorld } from "./migrations";
-import { addCard, connect, duplicateCard, liveCards, liveEdges, moveCards, removeCards, removeEdges, restore, updateCard } from "./world";
+import { addCard, connect, duplicateCard, liveCards, liveEdges, moveCards, removeCards, removeEdges, renameBoard, restore, updateCard } from "./world";
 
 const base = () => {
   let w = emptyWorld(0);
@@ -111,5 +111,18 @@ describe("duplicateCard", () => {
     const w = removeCards(base(), ["a"], 5);
     expect(duplicateCard(w, "a", 9)).toBe(w);
     expect(duplicateCard(w, "fehlt", 9)).toBe(w);
+  });
+});
+
+describe("renameBoard", () => {
+  it("benennt die Welt um und setzt updatedAt", () => {
+    const w = renameBoard(base(), "root", "Die Glasküste", 7);
+    expect(w.boards[0]).toMatchObject({ name: "Die Glasküste", updatedAt: 7 });
+  });
+
+  it("lässt die Welt unverändert bei gleichem Namen oder fehlendem Board", () => {
+    const w = base();
+    expect(renameBoard(w, "root", "Meine Welt", 7)).toBe(w);
+    expect(renameBoard(w, "fehlt", "X", 7)).toBe(w);
   });
 });

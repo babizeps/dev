@@ -135,3 +135,27 @@ test("Dock: Symbole behalten ihre Größe und passen ins Fenster", async ({ page
     }
   }
 });
+
+test("Weltname direkt umbenennen; Status nur als Punkt", async ({ page }) => {
+  await page.goto("/");
+  const name = page.getByRole("textbox", { name: "Name der Welt" });
+  await expect(name).toHaveValue("Meine Welt");
+
+  await name.fill("Die Glasküste");
+  await page.keyboard.press("Enter");
+  await expect(name).not.toBeFocused();
+
+  // Der Status-Text ist nur für Screenreader da, sichtbar ist der Punkt
+  const status = page.getByRole("status");
+  await expect(status).toHaveText("Gespeichert");
+  expect((await status.locator(".save-label").boundingBox())!.width).toBeLessThanOrEqual(1);
+  await expect(status.locator(".save-dot")).toBeVisible();
+
+  await page.reload();
+  await expect(name).toHaveValue("Die Glasküste");
+
+  // Ein leerer Name fällt beim Verlassen auf den Standard zurück
+  await name.fill("");
+  await name.blur();
+  await expect(name).toHaveValue("Meine Welt");
+});

@@ -141,3 +141,13 @@ export function duplicateCard(world: World, id: string, now = Date.now(), newCar
   const copy = { ...card, id: newCardId, x: card.x + 32, y: card.y + 32, fields: { ...card.fields }, updatedAt: now };
   return { ...world, cards: [...world.cards, copy] };
 }
+
+export function renameBoard(world: World, id: string, name: string, now = Date.now()): World {
+  let changed = false;
+  const boards = world.boards.map((b) => {
+    if (b.id !== id || b.deletedAt !== null || b.name === name) return b;
+    changed = true;
+    return { ...b, name, updatedAt: now };
+  });
+  return changed ? { ...world, boards } : world;
+}
