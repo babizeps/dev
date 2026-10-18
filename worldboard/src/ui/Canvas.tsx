@@ -18,7 +18,7 @@ import { liveCards, liveEdges } from "../core/world";
 import { firstImageFile, useStorage } from "./assets";
 import { CARD_WIDTH, CardNode, type CardNodeType } from "./CardNode";
 import { FloatingEdge } from "./FloatingEdge";
-import { useMenu } from "./menuState";
+import { openContextMenu, useMenu } from "./menuState";
 import type { ThemeMode } from "./theme";
 
 const nodeTypes = { card: CardNode };
@@ -57,7 +57,6 @@ function toEdges(links: Edge[], prev: FlowEdge[]): FlowEdge[] {
 export function Canvas({ mode }: { mode: ThemeMode }) {
   const world = useWorld((s) => s.world);
   const { addCard, updateCard, moveCards, connect, remove, duplicate } = useWorld.getState();
-  const openMenu = useMenu((s) => s.open);
   const closeMenu = useMenu((s) => s.close);
   const storage = useStorage();
   const { screenToFlowPosition, getNodes } = useReactFlow<CardNodeType>();
@@ -173,7 +172,7 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         onDelete={onDelete}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();
-          openMenu({ kind: "context", cardId: node.id, x: e.clientX, y: e.clientY });
+          openContextMenu(node.id);
         }}
         onMoveStart={closeMenu}
         deleteKeyCode={DELETE_KEYS}

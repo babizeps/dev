@@ -14,7 +14,7 @@ import { useWorld } from "../core/store";
 import type { Card } from "../core/types";
 import { firstImageFile, useAssetUrl, useStorage } from "./assets";
 import { ChevronIcon, MoreIcon, TypeIcon } from "./icons";
-import { useMenu } from "./menuState";
+import { openContextMenu, useMenu } from "./menuState";
 import { TypeDots } from "./TypeDots";
 
 export type CardNodeType = Node<{ card: Card }, "card">;
@@ -171,10 +171,7 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
             aria-label="Weitere Aktionen"
             aria-haspopup="menu"
             data-tip="Weitere Aktionen"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              openMenu({ kind: "context", cardId: id, x: r.left, y: r.bottom + 8 });
-            }}
+            onClick={() => openContextMenu(id)}
           >
             <MoreIcon size={16} />
           </button>

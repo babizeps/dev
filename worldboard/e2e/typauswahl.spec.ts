@@ -75,6 +75,11 @@ test("Rechtsklick-Menü: Typ, Duplizieren, Breite, Löschen", async ({ page }) =
   await card.click({ button: "right", position: { x: 240, y: 10 } });
   const menu = page.getByRole("menu", { name: "Karte" });
   await expect(menu).toBeVisible();
+  // Das Menü steht rechts neben der Karte, oben bündig
+  const cardBox = (await card.boundingBox())!;
+  const menuBox = (await menu.boundingBox())!;
+  expect(menuBox.x).toBeGreaterThanOrEqual(cardBox.x + cardBox.width);
+  expect(Math.abs(menuBox.y - cardBox.y)).toBeLessThan(2);
   await expect(menu.getByRole("menuitem", { name: "Breite zurücksetzen" })).toBeDisabled();
   await menu.getByRole("button", { name: "Ereignis" }).click();
   await expect(card).toHaveAttribute("data-type", "ereignis");
@@ -94,6 +99,7 @@ test("Rechtsklick-Menü: Typ, Duplizieren, Breite, Löschen", async ({ page }) =
   await select(card);
   await page.getByRole("button", { name: "Weitere Aktionen" }).click();
   await expect(menu).toBeVisible();
+  expect((await menu.boundingBox())!.x).toBeGreaterThanOrEqual(cardBox.x + cardBox.width);
 });
 
 test("Tasten 1–6 und Strg+D, aber nicht beim Tippen", async ({ page }) => {

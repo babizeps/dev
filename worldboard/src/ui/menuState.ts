@@ -19,3 +19,13 @@ export const useMenu = create<MenuState>()((set) => ({
   open: (menu) => set({ menu }),
   close: () => set({ menu: null }),
 }));
+
+const GAP = 12;
+
+/** Öffnet das Kartenmenü rechts neben der Karte, oben bündig mit ihr. */
+export function openContextMenu(cardId: string) {
+  const card = document.querySelector(`.react-flow__node[data-id="${CSS.escape(cardId)}"] .card`);
+  if (!card) return;
+  const r = card.getBoundingClientRect();
+  useMenu.getState().open({ kind: "context", cardId, x: r.right + GAP, y: r.top });
+}
