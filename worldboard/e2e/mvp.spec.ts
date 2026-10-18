@@ -144,7 +144,7 @@ test("Dock: Symbole behalten ihre Größe und passen ins Fenster", async ({ page
   }
 });
 
-test("Weltname direkt umbenennen; Status nur als Punkt", async ({ page }) => {
+test("Weltname direkt umbenennen; Punkt nur beim Speichern", async ({ page }) => {
   await page.goto("/");
   const name = page.getByRole("textbox", { name: "Name der Welt" });
   await expect(name).toHaveValue("Meine Welt");
@@ -153,11 +153,11 @@ test("Weltname direkt umbenennen; Status nur als Punkt", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(name).not.toBeFocused();
 
-  // Der Status-Text ist nur für Screenreader da, sichtbar ist der Punkt
+  // Der Status-Text ist nur für Screenreader da; gespeichert ist der Normalfall, dann kein Punkt
   const status = page.getByRole("status");
   await expect(status).toHaveText("Gespeichert");
   expect((await status.locator(".save-label").boundingBox())!.width).toBeLessThanOrEqual(1);
-  await expect(status.locator(".save-dot")).toBeVisible();
+  await expect(status.locator(".save-dot")).toHaveCSS("opacity", "0");
 
   await page.reload();
   await expect(name).toHaveValue("Die Glasküste");
@@ -334,5 +334,40 @@ test("Dock: jeder Typ-Knopf leuchtet beim Darüberfahren auf, auch Notiz im Skiz
         expect(bg, `${style}/${mode} ${await btn.getAttribute("data-type")}`).not.toBe(surface);
       }
     }
+  }
+});
+
+test("Weltname und Ansicht sind nur beim Darüberfahren zu sehen", async ({ page }) => {
+  for (const style of ["studio", "sketch"]) {
+    await page.goto("/");
+    await page.evaluate((s) => localStorage.setItem("worldboard.style", s), style);
+    await page.reload();
+    const title = page.locator(".title-island");
+    const status = page.locator(".status-island");
+    await page.mouse.move(640, 400);
+    await expect(title, style).toHaveCSS("opacity", "0");
+    await expect(status, style).toHaveCSS("opacity", "0");
+    // Keine Insel mehr: durchsichtig, ohne Rahmen
+    await expect(title).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(page.locator(".brand-name")).toHaveCount(0);
+
+    await title.hover();
+    await expect(title, style).toHaveCSS("opacity", "1");
+    await status.hover();
+    await expect(status, style).toHaveCSS("opacity", "1");
+
+    // Offenes Ansicht-Menü hält die Ecke sichtbar, auch wenn die Maus weggeht
+    await page.getByRole("button", { name: "Ansicht" }).click();
+    await page.mouse.move(640, 600);
+    await expect(status, style).toHaveCSS("opacity", "1");
+    // Klick daneben schließt das Menü, dann verschwindet die Ecke wieder
+    await page.locator(".react-flow__pane").click({ position: { x: 640, y: 600 } });
+    await expect(page.getByRole("dialog", { name: "Ansicht" })).toBeHidden();
+    await expect(status, style).toHaveCSS("opacity", "0");
+
+    // Beim Umbenennen bleibt der Name sichtbar
+    await page.getByRole("textbox", { name: "Name der Welt" }).focus();
+    await page.mouse.move(640, 400);
+    await expect(title, style).toHaveCSS("opacity", "1");
   }
 });

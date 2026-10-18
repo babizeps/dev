@@ -173,31 +173,53 @@ button svg { flex-shrink: 0; }
 [data-style="sketch"] .island,
 [data-style="sketch"] .dock { border: 1.5px solid var(--border); box-shadow: none; border-radius: 999px; }
 
-.title-island { top: 14px; left: 16px; height: 44px; gap: 8px; padding: 0 8px 0 16px; white-space: nowrap; }
-.brand-name { font-weight: 700; font-size: 15px; }
-[data-style="sketch"] .title-island { padding: 0 10px 0 18px; }
-[data-style="sketch"] .brand-name { font-family: var(--font-title); font-size: 26px; line-height: 1; }
+/* Oben links und rechts: ohne Insel, frei auf der Leinwand – und nur zu sehen, wenn man darüberfährt.
+   Sichtbar bleiben sie beim Bearbeiten, bei Tastaturbedienung, bei offenem Ansicht-Menü und bei einem Speicherfehler. */
+.island.title-island,
+.island.status-island,
+[data-style="sketch"] .island.title-island,
+[data-style="sketch"] .island.status-island {
+  top: 10px;
+  height: 44px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+:root .island.title-island:hover,
+:root .island.title-island:has(:focus-visible),
+:root .island.status-island:hover,
+:root .island.status-island:has(:focus-visible),
+:root .island.status-island.is-pinned { opacity: 1; }
+/* Ohne Maus (Touch) gibt es kein Darüberfahren: dort bleiben beide sichtbar. */
+@media (hover: none) { :root .island.title-island, :root .island.status-island { opacity: 1; } }
 
-.world-name { display: inline-grid; max-width: 320px; font-size: 14px; }
+.title-island { left: 10px; padding: 0 6px; white-space: nowrap; }
+
+.world-name { display: inline-grid; max-width: 320px; font-family: var(--font-title); font-size: 15px; font-weight: 600; }
+[data-style="sketch"] .world-name { font-size: 24px; font-weight: 700; line-height: 1; }
 .world-name::after,
-.world-name-input { grid-area: 1 / 1; padding: 4px 8px; font: inherit; }
+.world-name-input { grid-area: 1 / 1; padding: 6px 10px; font: inherit; }
 .world-name::after { content: attr(data-value); visibility: hidden; white-space: pre; overflow: hidden; }
 .world-name-input {
   min-width: 0;
   width: 100%;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
   text-overflow: ellipsis;
   outline: none;
 }
-.world-name-input:hover { background: var(--surface-muted); }
-.world-name-input:focus { background: var(--surface-muted); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.world-name-input:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.world-name-input:focus { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--accent); }
 [data-style="sketch"] .world-name-input { border-radius: 999px; }
 
-.status-island { top: 14px; right: 16px; height: 44px; gap: 6px; padding: 0 4px 0 12px; }
-[data-style="sketch"] .status-island { padding-right: 5px; }
+.status-island { right: 10px; gap: 2px; padding: 0 4px 0 8px; }
+.status-island .island-btn { color: var(--muted); transition: color 120ms ease, background 120ms ease; }
+.status-island .island-btn:hover,
+.status-island .island-btn[aria-expanded="true"] { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 
 .island-btn {
   width: 36px;
@@ -228,6 +250,8 @@ button svg { flex-shrink: 0; }
   white-space: nowrap;
 }
 .save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--saved, var(--t-ort)); flex-shrink: 0; transition: background 200ms ease; }
+/* Gespeichert ist der Normalfall: dann kein Punkt (der Platz bleibt, damit die Sonne nicht springt). */
+.save-status.is-saved .save-dot { opacity: 0; }
 .save-status.is-saving .save-dot { background: var(--muted); }
 .save-status.is-error { color: var(--danger); font-weight: 500; }
 .save-status.is-error .save-dot { background: var(--danger); }

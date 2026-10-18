@@ -30,7 +30,6 @@ function TitleIsland() {
   const renameWorld = useWorld((s) => s.renameWorld);
   return (
     <div className="island title-island">
-      <span className="brand-name">Worldboard</span>
       {/* Das unsichtbare Spiegelbild im ::after gibt dem Feld genau die Breite seines Textes. */}
       <span className="world-name" data-value={worldName || DEFAULT_WORLD_NAME}>
         <input
@@ -71,8 +70,8 @@ function StatusIsland({ theme }: { theme: ReturnType<typeof useTheme> }) {
   }, [open]);
 
   return (
-    <div className="island status-island" ref={ref}>
-      {/* Nur der Punkt ist sichtbar; der Text bleibt für Screenreader und steht im Tooltip. */}
+    <div className={`island status-island${open || saveStatus === "error" ? " is-pinned" : ""}`} ref={ref}>
+      {/* Der Punkt erscheint nur beim Speichern oder bei einem Fehler; der Text bleibt für Screenreader und steht im Tooltip. */}
       <span className={`save-status is-${saveStatus}`} role="status" title={`${SAVE_LABEL[saveStatus]} · ${location}`}>
         <span className="save-dot" aria-hidden="true" />
         <span className="save-label">{SAVE_LABEL[saveStatus]}</span>
