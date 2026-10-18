@@ -371,3 +371,31 @@ test("Weltname und Ansicht sind nur beim Darüberfahren zu sehen", async ({ page
     await expect(title, style).toHaveCSS("opacity", "1");
   }
 });
+
+test("Skizzenbuch: Dock und Typ-Menü wie aus dem Skizzenbuch", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("worldboard.style", "sketch"));
+  await page.reload();
+  const dockBtn = page.locator('.dock-btn[data-type="figur"]');
+  // Kein System-Tooltip mehr, die Beschriftung steht schon da
+  await expect(dockBtn).not.toHaveAttribute("title");
+  // Textmarker statt Fläche
+  await dockBtn.hover();
+  await expect(dockBtn).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect.poll(() => dockBtn.locator("span").evaluate((el) => getComputedStyle(el, "::before").transform)).not.toContain("matrix(0,");
+
+  // Typ-Menü: Handschrift, eingekreister Typ, Ziffern nur unter der Maus
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("card").getByRole("button", { name: /^Kartentyp/ }).click();
+  const menu = page.getByRole("menu", { name: "Kartentyp" });
+  await expect(menu).toBeVisible();
+  expect(await menu.evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Caveat");
+  const checked = menu.locator('[aria-checked="true"]');
+  await expect(checked.locator(".card-menu-check")).toBeHidden();
+  expect(await checked.locator(".type-chip").evaluate((el) => getComputedStyle(el, "::after").content)).toBe('""');
+  const ort = menu.locator('[data-type="ort"]');
+  await expect(ort.locator("kbd")).toHaveCSS("opacity", "0");
+  await ort.hover();
+  await expect(ort.locator("kbd")).not.toHaveCSS("opacity", "0");
+});

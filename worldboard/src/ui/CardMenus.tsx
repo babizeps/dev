@@ -57,7 +57,9 @@ function TypeMenu({ menu, card, pick }: { menu: OpenMenu; card: Card; pick: (t: 
             <TypeIcon type={t.type} size={13} />
           </span>
           <span className="card-menu-label">{t.label}</span>
-          {t.type === card.type ? <CheckIcon size={16} className="card-menu-check" /> : <kbd>{i + 1}</kbd>}
+          <span className="card-menu-end">
+            {t.type === card.type ? <CheckIcon size={16} className="card-menu-check" /> : <kbd>{i + 1}</kbd>}
+          </span>
         </button>
       ))}
     </div>

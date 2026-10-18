@@ -204,7 +204,6 @@ function Dock() {
             type="button"
             className="dock-btn"
             data-type={t.type}
-            title={`Neue Karte: ${t.label}`}
             onClick={() => addInView(t.type)}
           >
             <TypeIcon type={t.type} size={20} />

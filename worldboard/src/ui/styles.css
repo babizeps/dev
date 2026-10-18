@@ -642,7 +642,8 @@ button svg { flex-shrink: 0; }
 .card-menu-item:hover,
 .card-menu-item:focus-visible { background: var(--menu-hover); outline: none; }
 .card-menu-item[aria-checked="true"] { font-weight: 700; }
-.card-menu-label { flex: 1; }
+.card-menu-label { position: relative; }
+.card-menu-end { margin-left: auto; display: inline-flex; align-items: center; }
 .card-menu-item kbd { font: inherit; font-size: 12px; color: var(--muted); }
 .card-menu-check { color: var(--accent); }
 .type-chip {
@@ -657,6 +658,97 @@ button svg { flex-shrink: 0; }
 }
 /* Im Skizzenbuch ist die Notiz-Farbe weiß – ein feiner Rand hält den Punkt sichtbar. */
 [data-style="sketch"] [data-type="notiz"] > .type-chip { box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+/* ------------------------------------------------------------------ Skizzenbuch: Dock und Typ-Menü */
+
+/* Handgezeichnete Ränder: ungleiche Ecken und eine zweite, leicht verdrehte Tintenlinie. */
+[data-style="sketch"] .dock { border-radius: 30px 56px 36px 52px / 40px 30px 42px 28px; }
+[data-style="sketch"] .card-menu { border-radius: 22px 8px 18px 10px / 10px 20px 8px 22px; }
+[data-style="sketch"] .dock::before,
+[data-style="sketch"] .card-menu::before {
+  content: "";
+  position: absolute;
+  inset: -4px -3px -2px -5px;
+  border: 1.3px solid var(--border);
+  border-radius: inherit;
+  opacity: 0.5;
+  transform: rotate(-0.5deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .card-menu::before { transform: rotate(0.7deg); }
+
+/* Textmarker statt Fläche: ein schräger Strich hinter dem Wort, in der Farbe des Kartentyps. */
+[data-style="sketch"] [data-type] { --marker: color-mix(in srgb, var(--tb), var(--tc) 22%); }
+[data-style="sketch"] .dock-btn[data-type]:hover { background: transparent; }
+[data-style="sketch"] .dock-btn[data-type] > span,
+[data-style="sketch"] .card-menu-label { position: relative; z-index: 0; }
+[data-style="sketch"] .dock-btn[data-type] > span::before,
+[data-style="sketch"] .card-menu-label::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -6px;
+  right: -7px;
+  bottom: 0.08em;
+  height: 0.5em;
+  background: var(--marker);
+  border-radius: 3px 9px 4px 10px;
+  transform: rotate(-2.5deg) scaleX(0);
+  transform-origin: left center;
+  transition: transform 140ms ease-out;
+}
+[data-style="sketch"] .dock-btn[data-type]:hover > span::before,
+[data-style="sketch"] .dock-btn[data-type]:focus-visible > span::before,
+[data-style="sketch"] .card-menu-item:hover .card-menu-label::before,
+[data-style="sketch"] .card-menu-item:focus-visible .card-menu-label::before { transform: rotate(-2.5deg) scaleX(1); }
+[data-style="sketch"] .card-menu-item:hover,
+[data-style="sketch"] .card-menu-item:focus-visible { background: transparent; }
+
+/* Bleistiftstrich statt gerader Trennlinie */
+[data-style="sketch"] .dock-separator {
+  width: 10px;
+  height: 40px;
+  margin: 0 2px;
+  background: var(--muted);
+  opacity: 0.55;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 40%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M5.5 2c-1 6 1 12 0 18s-1.2 12 .3 18%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.6%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 40%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M5.5 2c-1 6 1 12 0 18s-1.2 12 .3 18%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.6%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+/* Typ-Menü als angeklebter Zettel in Handschrift */
+[data-style="sketch"] .card-menu { font-family: var(--font-title); font-size: 23px; font-weight: 600; transform: rotate(-1deg); padding: 10px 8px 8px; }
+[data-style="sketch"] .card-menu::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 20px;
+  margin-left: -36px;
+  background: var(--tape);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .card-menu-item { min-height: 42px; gap: 12px; }
+[data-style="sketch"] .card-menu-item[aria-checked="true"] { font-weight: 700; }
+
+/* Der aktuelle Typ wird eingekreist statt abgehakt. */
+[data-style="sketch"] .card-menu-check { display: none; }
+[data-style="sketch"] .card-menu-item .type-chip { position: relative; }
+[data-style="sketch"] .card-menu-item[aria-checked="true"] .type-chip::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  background: var(--text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 50 50%27%3E%3Cpath d=%27M27 4.5c11 .5 19 8.5 18.5 20S36 45.5 24 45.5 4.5 37 4.8 24.5 14 3 30 5.8%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 50 50%27%3E%3Cpath d=%27M27 4.5c11 .5 19 8.5 18.5 20S36 45.5 24 45.5 4.5 37 4.8 24.5 14 3 30 5.8%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / contain no-repeat;
+  pointer-events: none;
+}
+
+/* Tastenziffern nur in der Zeile unter der Maus, klein in Handschrift */
+[data-style="sketch"] .card-menu-item kbd { font-family: var(--font-title); font-size: 18px; color: var(--muted); opacity: 0; transition: opacity 120ms ease; }
+[data-style="sketch"] .card-menu-item:hover kbd,
+[data-style="sketch"] .card-menu-item:focus-visible kbd { opacity: 0.8; }
 
 /* ------------------------------------------------------------------ Mauszeiger */
 
