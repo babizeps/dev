@@ -214,7 +214,7 @@ test("Auto-Modus folgt dem System", async ({ page }) => {
   await expect(html).toHaveAttribute("data-mode", "dark");
 });
 
-test("Eigene Mauszeiger je Stil, Textfelder behalten den Textcursor", async ({ page }) => {
+test("Eigene Mauszeiger je Stil, auch für Text", async ({ page }) => {
   await page.goto("/");
   await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
   const card = page.getByTestId("card");
@@ -229,7 +229,10 @@ test("Eigene Mauszeiger je Stil, Textfelder behalten den Textcursor", async ({ p
     expect(pane, style).toContain("data:image/svg+xml");
     expect(await cursorOf(".react-flow__node"), style).toBe(pane);
     expect(await cursorOf(".card-type"), style).toBe(pane);
-    expect(await cursorOf(".card-title"), style).toBe("text");
+    const text = await cursorOf(".card-title");
+    expect(text, style).toContain("data:image/svg+xml");
+    expect(text, style).toMatch(/, text$/);
+    expect(text, style).not.toBe(pane);
   }
   // Studio und Skizzenbuch haben unterschiedliche Zeiger
   await page.evaluate(() => localStorage.setItem("worldboard.style", "studio"));
