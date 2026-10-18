@@ -17,7 +17,7 @@ import type { Card, Edge } from "../core/types";
 import { liveCards, liveEdges } from "../core/world";
 import { firstImageFile, useStorage } from "./assets";
 import { CARD_WIDTH, CardNode, type CardNodeType } from "./CardNode";
-import { FloatingEdge } from "./FloatingEdge";
+import { ConnectionLine, FloatingEdge } from "./FloatingEdge";
 import { useMenu } from "./menuState";
 import type { ThemeMode } from "./theme";
 
@@ -195,6 +195,7 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         panOnScroll
         panOnScrollSpeed={1}
         connectionRadius={40}
+        connectionLineComponent={ConnectionLine}
         minZoom={0.2}
         maxZoom={2.5}
         colorMode={mode}

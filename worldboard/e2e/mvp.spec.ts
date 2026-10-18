@@ -449,8 +449,39 @@ test("Skizzenbuch: Tinte statt Violett, gekritzelter Verbindungspunkt, Rötel-Sc
   await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
   await page.mouse.down();
   await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
-  const glowing = page.locator(".card.is-connect-target");
+  const glowing = page.locator(".card.is-connect-hover");
   await expect(glowing).toHaveCount(1);
   expect(await glowing.evaluate((e) => getComputedStyle(e).boxShadow)).toContain("rgba(194, 85, 45");
   await page.mouse.up();
+});
+
+test("Skizzenbuch: Verbindungslinien sind von Hand gezogen, Studio bleibt glatt", async ({ page }) => {
+  await page.goto("/");
+  const pane = page.locator(".react-flow__pane");
+  await pane.dblclick({ position: { x: 300, y: 250 } });
+  await page.keyboard.press("Escape");
+  await pane.dblclick({ position: { x: 850, y: 450 } });
+  await page.keyboard.press("Escape");
+  const cards = page.getByTestId("card");
+  await cards.nth(0).hover();
+  const h = (await page.locator(".handle-source").first().boundingBox())!;
+  const t = (await cards.nth(1).boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 8 });
+  await page.mouse.up();
+  const edge = page.locator(".react-flow__edge-path").first();
+  await expect(edge).toHaveCount(1);
+  // Studio: eine glatte Bezierkurve (ein einziges C-Segment)
+  expect((await edge.getAttribute("d"))!.match(/[CQ]/g)!.length).toBe(1);
+
+  await waitSaved(page);
+  await page.evaluate(() => localStorage.setItem("worldboard.style", "sketch"));
+  await page.reload();
+  await expect(page.locator(".react-flow__edge-path")).toHaveCount(1);
+  const sketchD = (await page.locator(".react-flow__edge-path").first().getAttribute("d"))!;
+  // Skizzenbuch: viele kleine Bögen statt einer Kurve – und beim Neuladen genau gleich
+  expect(sketchD.match(/Q/g)!.length).toBeGreaterThan(20);
+  await page.reload();
+  expect(await page.locator(".react-flow__edge-path").first().getAttribute("d")).toBe(sketchD);
 });

@@ -79,6 +79,8 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
   // Während eine Verbindung gezogen wird, wird die ganze Karte zum Ziel.
   const connection = useConnection();
   const isConnectTarget = connection.inProgress && connection.fromNode.id !== id;
+  // Die Karte, auf die gerade gezeigt wird – sie bekommt im Skizzenbuch den Schimmer.
+  const isConnectHover = connection.inProgress && connection.toNode?.id === id;
 
   useEffect(() => {
     if (focusCardId !== id) return;
@@ -108,7 +110,7 @@ export function CardNode({ id, data, selected }: NodeProps<CardNodeType>) {
 
   return (
     <div
-      className={["card", selected && "is-selected", dropActive && "is-drop", isConnectTarget && "is-connect-target"]
+      className={["card", selected && "is-selected", dropActive && "is-drop", isConnectTarget && "is-connect-target", isConnectHover && "is-connect-hover"]
         .filter(Boolean)
         .join(" ")}
       data-type={card.type}

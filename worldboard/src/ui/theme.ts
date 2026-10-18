@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 export type ThemeStyle = "studio" | "sketch";
 /** Der Modus, in dem gerade gezeichnet wird. */
@@ -81,4 +81,15 @@ export function useTheme() {
   }, []);
 
   return { style, mode, modeSetting, setStyle, setModeSetting };
+}
+
+function subscribeStyle(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-style"] });
+  return () => observer.disconnect();
+}
+
+/** Der gerade aktive Stil, für Teile, die nicht unter `useTheme` hängen (z. B. Verbindungen). */
+export function useActiveStyle(): ThemeStyle {
+  return useSyncExternalStore(subscribeStyle, () => (document.documentElement.dataset.style === "sketch" ? "sketch" : "studio"));
 }
