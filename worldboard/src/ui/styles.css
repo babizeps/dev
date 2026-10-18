@@ -176,7 +176,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand-world { color: var(--muted); }
 .brand-world::before { content: "/ "; }
 
-.types { padding: 4px; border-radius: 10px; background: var(--surface-muted); overflow-x: auto; }
+.types { min-width: 0; padding: 4px; border-radius: 10px; background: var(--surface-muted); overflow-x: auto; }
+.tool-btn { flex-shrink: 0; }
+
+/* Wird es eng, zeigt die Leiste nur die Symbole; der Name steht im Tooltip. */
+@media (max-width: 1240px) {
+  [data-style="studio"] .types .tool-label { display: none; }
+  [data-style="studio"] .types .tool-btn { width: 40px; padding: 0; }
+}
+@media (max-width: 1400px) {
+  [data-style="sketch"] .types .tool-label { display: none; }
+  [data-style="sketch"] .types .tool-btn { width: 42px; padding: 0; }
+}
 
 .tool-btn {
   height: 40px;
@@ -197,6 +208,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .tool-btn:hover { background: var(--surface); }
 .tool-btn[data-type] svg { color: var(--tc); }
+/* Symbole behalten ihre Größe, auch wenn es eng wird */
+button svg { flex-shrink: 0; }
 .tool-btn[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 .icon-btn { padding: 0; font-size: 18px; }
 .tool-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
@@ -208,6 +221,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .save-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 .save-status.is-saved svg { color: var(--t-ort); }
 .save-status.is-error { color: var(--t-figur-fg); font-weight: 500; }
+.save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--muted); }
+
+/* Schmale Fenster: Weltname aus, Speicherstatus nur als Symbol (Fehler bleiben ausgeschrieben) */
+@media (max-width: 1100px) {
+  .brand-world { display: none; }
+  .save-status:not(.is-error) .save-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .save-status:not(.is-error) { justify-content: center; min-width: 40px; }
+}
 
 .hint, .zoom { position: absolute; z-index: 10; bottom: 16px; }
 .hint { left: 20px; margin: 0; font-size: 13px; color: var(--muted); }

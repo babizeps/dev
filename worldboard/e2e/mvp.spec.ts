@@ -108,3 +108,23 @@ test("Stil und Modus werden gemerkt", async ({ page }) => {
   await expect(html).toHaveAttribute("data-style", "studio");
   await expect(html).toHaveAttribute("data-mode", "light");
 });
+
+test("Symbole der Werkzeugleiste behalten ihre Größe", async ({ page }) => {
+  for (const style of ["studio", "sketch"]) {
+    for (const width of [1440, 1280, 1100, 960]) {
+      await page.setViewportSize({ width, height: 700 });
+      await page.goto("/");
+      await page.evaluate((s) => localStorage.setItem("worldboard.style", s), style);
+      await page.reload();
+      const sizes = await page
+        .getByRole("navigation", { name: "Neue Karte" })
+        .locator("svg")
+        .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+      expect(sizes, `${style} bei ${width}px`).toEqual([16, 16, 16, 16, 16, 16]);
+      // Alle sechs Knöpfe passen in die Leiste, ohne dass sie scrollen muss
+      const nav = page.getByRole("navigation", { name: "Neue Karte" });
+      const { scroll, client } = await nav.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+      expect(scroll, `${style} bei ${width}px`).toBeLessThanOrEqual(client);
+    }
+  }
+});

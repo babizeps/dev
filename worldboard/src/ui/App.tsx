@@ -45,9 +45,16 @@ function Toolbar({ theme }: { theme: ReturnType<typeof useTheme> }) {
 
       <nav className="toolbar-group types" aria-label="Neue Karte">
         {CARD_TYPES.map((t) => (
-          <button key={t.type} type="button" className="tool-btn" data-type={t.type} onClick={() => addInView(t.type)}>
+          <button
+            key={t.type}
+            type="button"
+            className="tool-btn"
+            data-type={t.type}
+            title={`Neue Karte: ${t.label}`}
+            onClick={() => addInView(t.type)}
+          >
             <TypeIcon type={t.type} />
-            {t.label}
+            <span className="tool-label">{t.label}</span>
           </button>
         ))}
       </nav>
@@ -63,7 +70,8 @@ function Toolbar({ theme }: { theme: ReturnType<typeof useTheme> }) {
         </div>
         <span className={`save-status is-${saveStatus}`} role="status" title={`Speicherort: ${location}`}>
           {saveStatus === "saved" && <CheckIcon size={15} />}
-          {SAVE_LABEL[saveStatus]}
+          {saveStatus === "saving" && <span className="save-dot" aria-hidden="true" />}
+          <span className="save-label">{SAVE_LABEL[saveStatus]}</span>
         </span>
         <div className="toolbar-group segmented" role="group" aria-label="Stil">
           {STYLES.map((s) => (
