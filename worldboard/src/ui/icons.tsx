@@ -109,10 +109,3 @@ export const RedoIcon = (props: IconProps) => (
   </Svg>
 );
 
-export const MoreIcon = ({ size = 16, className }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-    <circle cx="5" cy="12" r="1.8" />
-    <circle cx="12" cy="12" r="1.8" />
-    <circle cx="19" cy="12" r="1.8" />
-  </svg>
-);

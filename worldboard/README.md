@@ -54,8 +54,8 @@ einen Hinweis. Dann kopierst du die neueste Datei aus `backups/` zurück nach `w
 | Aktion | So geht's |
 |---|---|
 | Neue Karte | Doppelklick auf die Leinwand oder einen Typ im Dock unten wählen |
-| Kartentyp ändern | Karte anklicken und einen Farbpunkt darüber wählen, auf die Typ-Plakette klicken oder bei ausgewählter Karte die Tasten 1–6 drücken |
-| Weitere Aktionen | Rechtsklick auf eine Karte oder ⋯ über der ausgewählten Karte: Bild hinzufügen, Duplizieren (Strg/Cmd+D), Breite zurücksetzen, Löschen |
+| Kartentyp ändern | Auf die Typ-Plakette in der Karte klicken oder bei ausgewählter Karte die Tasten 1–6 drücken |
+| Duplizieren | Karte anklicken, dann Strg/Cmd+D |
 | Bild hinzufügen | Bild auf eine Karte ziehen oder mit Strg+V einfügen (in die Karte, in der du schreibst oder die ausgewählt ist, sonst als neue Karte) |
 | Verbinden | Punkt rechts an der Karte auf eine andere Karte ziehen |
 | Breite ändern | Karte anklicken, Griff unten rechts ziehen |

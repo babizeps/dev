@@ -18,7 +18,7 @@ import { liveCards, liveEdges } from "../core/world";
 import { firstImageFile, useStorage } from "./assets";
 import { CARD_WIDTH, CardNode, type CardNodeType } from "./CardNode";
 import { FloatingEdge } from "./FloatingEdge";
-import { openContextMenu, useMenu } from "./menuState";
+import { useMenu } from "./menuState";
 import type { ThemeMode } from "./theme";
 
 const nodeTypes = { card: CardNode };
@@ -170,10 +170,6 @@ export function Canvas({ mode }: { mode: ThemeMode }) {
         onNodeDragStop={(_, __, dragged) => moveCards(dragged.map((n) => ({ id: n.id, ...n.position })))}
         onConnect={(c) => connect(c.source, c.target)}
         onDelete={onDelete}
-        onNodeContextMenu={(e, node) => {
-          e.preventDefault();
-          openContextMenu(node.id);
-        }}
         onMoveStart={closeMenu}
         deleteKeyCode={DELETE_KEYS}
         zoomOnDoubleClick={false}

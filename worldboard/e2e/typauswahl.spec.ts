@@ -16,28 +16,13 @@ async function select(card: ReturnType<Page["getByTestId"]>) {
   await card.click({ position: { x: 240, y: 10 } });
 }
 
-test("Farbpunkte über der ausgewählten Karte", async ({ page }) => {
+test("Keine Leiste über der Karte und kein eigenes Rechtsklick-Menü", async ({ page }) => {
   await page.goto("/");
   const card = await newCard(page, 400, 350, "Mira");
-  const toolbar = page.locator(".card-toolbar");
-  await expect(toolbar).toBeHidden();
-
   await select(card);
-  await expect(toolbar).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: "Notiz" })).toHaveAttribute("aria-pressed", "true");
-  await toolbar.getByRole("button", { name: "Figur" }).click();
-  await expect(card).toHaveAttribute("data-type", "figur");
-  await expect(toolbar.getByRole("button", { name: "Figur" })).toHaveAttribute("aria-pressed", "true");
-
-  // Bei zwei ausgewählten Karten keine Leiste
-  const other = await newCard(page, 800, 350, "Hafen");
-  await select(other);
-  // React Flow erkennt Strg über das Tastenereignis, nicht über den Klick selbst.
-  await page.keyboard.down("Control");
-  await card.click({ position: { x: 240, y: 10 } });
-  await page.keyboard.up("Control");
-  await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
-  await expect(toolbar).toBeHidden();
+  await expect(page.locator(".react-flow__node-toolbar")).toHaveCount(0);
+  await card.click({ button: "right", position: { x: 240, y: 10 } });
+  await expect(page.getByRole("menu")).toHaveCount(0);
 });
 
 test("Menü an der Plakette mit Tastatur und Escape", async ({ page }) => {
@@ -48,7 +33,6 @@ test("Menü an der Plakette mit Tastatur und Escape", async ({ page }) => {
   await badge.click();
   const menu = page.getByRole("menu", { name: "Kartentyp" });
   await expect(menu).toBeVisible();
-  await expect(page.locator(".card-toolbar")).toBeHidden();
   await expect(menu.getByRole("menuitemradio", { name: "Notiz" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
@@ -65,41 +49,6 @@ test("Menü an der Plakette mit Tastatur und Escape", async ({ page }) => {
   await badge.click();
   await page.locator(".react-flow__pane").click({ position: { x: 900, y: 650 } });
   await expect(menu).toBeHidden();
-});
-
-test("Rechtsklick-Menü: Typ, Duplizieren, Breite, Löschen", async ({ page }) => {
-  await page.goto("/");
-  const cards = page.getByTestId("card");
-  const card = await newCard(page, 400, 350, "Mira");
-
-  await card.click({ button: "right", position: { x: 240, y: 10 } });
-  const menu = page.getByRole("menu", { name: "Karte" });
-  await expect(menu).toBeVisible();
-  // Das Menü steht rechts neben der Karte, oben bündig
-  const cardBox = (await card.boundingBox())!;
-  const menuBox = (await menu.boundingBox())!;
-  expect(menuBox.x).toBeGreaterThanOrEqual(cardBox.x + cardBox.width);
-  expect(Math.abs(menuBox.y - cardBox.y)).toBeLessThan(2);
-  await expect(menu.getByRole("menuitem", { name: "Breite zurücksetzen" })).toBeDisabled();
-  await menu.getByRole("button", { name: "Ereignis" }).click();
-  await expect(card).toHaveAttribute("data-type", "ereignis");
-  await expect(menu).toBeHidden();
-
-  await card.click({ button: "right", position: { x: 240, y: 10 } });
-  await menu.getByRole("menuitem", { name: "Duplizieren" }).click();
-  await expect(cards).toHaveCount(2);
-  await expect(cards.nth(1).getByLabel("Titel")).toHaveValue("Mira");
-  await expect(cards.nth(1)).toHaveAttribute("data-type", "ereignis");
-
-  await cards.nth(1).click({ button: "right", position: { x: 240, y: 10 } });
-  await menu.getByRole("menuitem", { name: "Löschen" }).click();
-  await expect(cards).toHaveCount(1);
-
-  // Auch über den ⋯-Knopf der Leiste erreichbar
-  await select(card);
-  await page.getByRole("button", { name: "Weitere Aktionen" }).click();
-  await expect(menu).toBeVisible();
-  expect((await menu.boundingBox())!.x).toBeGreaterThanOrEqual(cardBox.x + cardBox.width);
 });
 
 test("Tasten 1–6 und Strg+D, aber nicht beim Tippen", async ({ page }) => {

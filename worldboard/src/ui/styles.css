@@ -475,59 +475,6 @@ button svg { flex-shrink: 0; }
 
 /* ------------------------------------------------------------------ Typ-Auswahl */
 
-.card-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px;
-  border-radius: 999px;
-  background: var(--menu-bg);
-  border: 1px solid var(--menu-border);
-  box-shadow: var(--menu-shadow);
-}
-.card-toolbar-separator { width: 1px; height: 22px; margin: 0 4px; background: var(--menu-border); }
-[data-style="sketch"] .card-toolbar { border: 1.5px solid var(--border); box-shadow: none; }
-
-.type-dots { display: flex; gap: 4px; }
-
-.type-dot {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 999px;
-  background: var(--tb);
-  color: var(--tf);
-  cursor: pointer;
-  transition: transform 80ms ease;
-}
-.type-dot:hover { transform: scale(1.08); }
-.type-dot[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--menu-bg), 0 0 0 4px var(--tc); }
-.type-dot.is-more { background: transparent; color: var(--text); }
-.type-dot.is-more:hover { background: var(--menu-hover); transform: none; }
-/* Kurzer Hinweis beim Darüberfahren, z. B. „Fraktion · 4“ */
-.type-dot[data-tip]:hover::after,
-.type-dot[data-tip]:focus-visible::after {
-  content: attr(data-tip);
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: var(--text);
-  color: var(--bg);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 1;
-}
-
 .card-menu {
   position: fixed;
   z-index: 50;
@@ -543,16 +490,6 @@ button svg { flex-shrink: 0; }
   font-size: 14px;
 }
 [data-style="sketch"] .card-menu { border: 1.5px solid var(--border); border-radius: 14px; }
-.card-menu .type-dots { padding: 2px 6px 8px; }
-.card-menu-heading {
-  padding: 6px 8px 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.card-menu-separator { height: 1px; margin: 4px 6px; background: var(--menu-border); }
 .card-menu-item {
   display: flex;
   align-items: center;
@@ -569,8 +506,6 @@ button svg { flex-shrink: 0; }
 .card-menu-item:hover,
 .card-menu-item:focus-visible { background: var(--menu-hover); outline: none; }
 .card-menu-item[aria-checked="true"] { font-weight: 700; }
-.card-menu-item:disabled { opacity: 0.4; cursor: default; background: transparent; }
-.card-menu-item.is-danger { color: var(--danger); }
 .card-menu-label { flex: 1; }
 .card-menu-item kbd { font: inherit; font-size: 12px; color: var(--muted); }
 .card-menu-check { color: var(--accent); }
@@ -585,6 +520,4 @@ button svg { flex-shrink: 0; }
   color: var(--tf);
 }
 /* Im Skizzenbuch ist die Notiz-Farbe weiß – ein feiner Rand hält den Punkt sichtbar. */
-[data-style="sketch"] .type-dot[data-type="notiz"],
 [data-style="sketch"] [data-type="notiz"] > .type-chip { box-shadow: inset 0 0 0 1.5px var(--muted); }
-[data-style="sketch"] .type-dot[data-type="notiz"][aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--muted), 0 0 0 2px var(--menu-bg), 0 0 0 4px var(--tc); }

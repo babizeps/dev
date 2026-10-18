@@ -2,12 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CARD_TYPES } from "../core/cardTypes";
 import { useWorld } from "../core/store";
 import type { Card, CardType } from "../core/types";
-import { useStorage } from "./assets";
 import { CheckIcon, TypeIcon } from "./icons";
 import { useMenu, type OpenMenu } from "./menuState";
-import { TypeDots } from "./TypeDots";
 
-const MENU_ITEMS = 'button:not(:disabled)[role^="menuitem"], .type-dot';
+const MENU_ITEMS = 'button:not(:disabled)[role^="menuitem"]';
 
 /** Hält ein fest positioniertes Menü im Fenster und setzt den Fokus hinein. */
 function useMenuPlacement(menu: OpenMenu) {
@@ -66,60 +64,7 @@ function TypeMenu({ menu, card, pick }: { menu: OpenMenu; card: Card; pick: (t: 
   );
 }
 
-function ContextMenu({ menu, card, pick }: { menu: OpenMenu; card: Card; pick: (t: CardType) => void }) {
-  const { ref, pos } = useMenuPlacement(menu);
-  const { updateCard, duplicate, remove } = useWorld.getState();
-  const close = useMenu((s) => s.close);
-  const storage = useStorage();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const run = (action: () => void) => () => {
-    action();
-    close();
-  };
-
-  return (
-    <div ref={ref} className="card-menu" role="menu" aria-label="Karte" style={pos} onKeyDown={onMenuKeyDown}>
-      <div className="card-menu-heading">Typ</div>
-      <TypeDots current={card.type} onPick={pick} />
-      <div className="card-menu-separator" role="separator" />
-      <button type="button" role="menuitem" className="card-menu-item" onClick={() => fileInput.current?.click()}>
-        <span className="card-menu-label">Bild hinzufügen …</span>
-        <kbd>Strg V</kbd>
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (file) updateCard(card.id, { image: await storage.saveAsset(file) });
-          close();
-        }}
-      />
-      <button type="button" role="menuitem" className="card-menu-item" onClick={run(() => duplicate(card.id))}>
-        <span className="card-menu-label">Duplizieren</span>
-        <kbd>Strg D</kbd>
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="card-menu-item"
-        disabled={card.width === null}
-        onClick={run(() => updateCard(card.id, { width: null }))}
-      >
-        <span className="card-menu-label">Breite zurücksetzen</span>
-      </button>
-      <div className="card-menu-separator" role="separator" />
-      <button type="button" role="menuitem" className="card-menu-item is-danger" onClick={run(() => remove([card.id], []))}>
-        <span className="card-menu-label">Löschen</span>
-        <kbd>Entf</kbd>
-      </button>
-    </div>
-  );
-}
-
-/** Das gerade offene Kartenmenü (Typ-Menü an der Plakette oder Rechtsklick-Menü). */
+/** Das gerade offene Typ-Menü an der Plakette einer Karte. */
 export function CardMenus() {
   const menu = useMenu((s) => s.menu);
   const close = useMenu((s) => s.close);
@@ -147,9 +92,5 @@ export function CardMenus() {
     updateCard(card.id, { type });
     close();
   };
-  return menu.kind === "type" ? (
-    <TypeMenu menu={menu} card={card} pick={pick} />
-  ) : (
-    <ContextMenu menu={menu} card={card} pick={pick} />
-  );
+  return <TypeMenu menu={menu} card={card} pick={pick} />;
 }
