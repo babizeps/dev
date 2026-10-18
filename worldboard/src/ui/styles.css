@@ -31,6 +31,7 @@
   --menu-border: #e3e3de;
   --menu-hover: #f0f0ec;
   --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  --island-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
   --danger: #b4321c;
 }
 
@@ -59,6 +60,7 @@
   --menu-border: #d8d6cc;
   --menu-hover: #f3f1ea;
   --menu-shadow: 0 10px 24px rgba(38, 37, 31, 0.14);
+  --island-shadow: none;
   --danger: #a3301b;
 }
 
@@ -88,6 +90,7 @@
   --menu-border: #45433b;
   --menu-hover: #3d3b34;
   --menu-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  --island-shadow: 0 0 0 1px #3a3832, 0 10px 28px rgba(0, 0, 0, 0.45);
   --danger: #ffb4a3;
 }
 
@@ -106,7 +109,6 @@
   --radius: 10px;
   --pill: 8px;
   --tilt-max: 0deg;
-  --canvas-top: 56px;
   --edge-width: 1.5;
 }
 
@@ -118,7 +120,6 @@
   --radius: 2px;
   --pill: 999px;
   --tilt-max: 1.6deg;
-  --canvas-top: 0px;
   --edge-width: 1.8;
 }
 
@@ -147,52 +148,83 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Symbole behalten ihre Größe, auch wenn es eng wird */
+button svg { flex-shrink: 0; }
+
 .app { position: fixed; inset: 0; overflow: hidden; }
 
 .fatal { max-width: 560px; margin: 15vh auto; padding: 0 16px; }
 
-/* ------------------------------------------------------------------ Werkzeugleiste */
+/* ------------------------------------------------------------------ Inseln und Dock */
 
-.toolbar {
+/* Schwebende Flächen über der Leinwand: oben Titel und Status, unten Dock und Zoom */
+.island,
+.dock {
   position: absolute;
-  top: 0; left: 0; right: 0;
   z-index: 10;
-  height: 56px;
-  padding: 0 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--island-shadow);
 }
+[data-style="sketch"] .island,
+[data-style="sketch"] .dock { border: 1.5px solid var(--border); box-shadow: none; border-radius: 999px; }
 
-.toolbar-group { display: flex; align-items: center; gap: 4px; }
-.toolbar-right { display: flex; align-items: center; gap: 10px; }
+.title-island { top: 14px; left: 16px; height: 44px; gap: 10px; padding: 0 16px 0 12px; white-space: nowrap; }
+.brand-mark { width: 20px; height: 20px; border-radius: 6px; background: var(--text); flex-shrink: 0; }
+.brand-name { font-weight: 700; font-size: 15px; }
+.brand-world { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+[data-style="sketch"] .title-island { padding: 0 18px; }
+[data-style="sketch"] .brand-mark { display: none; }
+[data-style="sketch"] .brand-name { font-family: var(--font-title); font-size: 26px; line-height: 1; }
 
-.brand { gap: 10px; white-space: nowrap; }
-.brand-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--text); }
-.brand-name { font-weight: 700; font-size: 16px; }
-.brand-world { color: var(--muted); }
-.brand-world::before { content: "/ "; }
+.status-island { top: 14px; right: 16px; height: 44px; gap: 6px; padding: 0 4px 0 14px; }
+[data-style="sketch"] .status-island { padding-right: 5px; }
 
-.types { min-width: 0; padding: 4px; border-radius: 10px; background: var(--surface-muted); overflow-x: auto; }
-.tool-btn { flex-shrink: 0; }
-
-/* Wird es eng, zeigt die Leiste nur die Symbole; der Name steht im Tooltip. */
-@media (max-width: 1240px) {
-  [data-style="studio"] .types .tool-label { display: none; }
-  [data-style="studio"] .types .tool-btn { width: 40px; padding: 0; }
+.island-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
 }
-@media (max-width: 1400px) {
-  [data-style="sketch"] .types .tool-label { display: none; }
-  [data-style="sketch"] .types .tool-btn { width: 42px; padding: 0; }
-}
+.island-btn:hover,
+.island-btn[aria-expanded="true"] { background: var(--surface-muted); }
+[data-style="sketch"] .island-btn { border-radius: 999px; }
 
-.tool-btn {
-  height: 40px;
-  min-width: 40px;
-  padding: 0 12px;
+.save-status { display: inline-flex; align-items: center; gap: 7px; margin-right: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.save-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--t-ort); flex-shrink: 0; }
+.save-status.is-saving .save-dot { background: var(--muted); }
+.save-status.is-error { color: var(--danger); font-weight: 500; }
+.save-status.is-error .save-dot { background: var(--danger); }
+
+.view-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 12px;
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
+  box-shadow: var(--menu-shadow);
+}
+[data-style="sketch"] .view-menu { border: 1.5px solid var(--border); border-radius: 14px; }
+.view-menu-label { padding: 2px 2px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.segmented { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 10px; background: var(--surface-muted); }
+.segmented button {
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -203,78 +235,57 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
   cursor: pointer;
 }
-.tool-btn:hover { background: var(--surface); }
-.tool-btn[data-type] svg { color: var(--tc); }
-/* Symbole behalten ihre Größe, auch wenn es eng wird */
-button svg { flex-shrink: 0; }
-.tool-btn[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
-.icon-btn { padding: 0; font-size: 18px; }
-.tool-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.segmented button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+[data-style="sketch"] .segmented,
+[data-style="sketch"] .segmented button { border-radius: 999px; }
+[data-style="sketch"] .segmented button[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: none; }
 
-.segmented,
-.history { padding: 4px; border-radius: 10px; background: var(--surface-muted); }
-.toolbar-right > .icon-btn { background: var(--surface-muted); border-radius: 10px; width: 48px; height: 48px; }
-
-.save-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
-.save-status.is-saved svg { color: var(--t-ort); }
-.save-status.is-error { color: var(--t-figur-fg); font-weight: 500; }
-.save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--muted); }
-
-/* Schmale Fenster: Weltname aus, Speicherstatus nur als Symbol (Fehler bleiben ausgeschrieben) */
-@media (max-width: 1100px) {
-  .brand-world { display: none; }
-  .save-status:not(.is-error) .save-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-  .save-status:not(.is-error) { justify-content: center; min-width: 40px; }
-}
-
-.hint, .zoom { position: absolute; z-index: 10; bottom: 16px; }
-.hint { left: 20px; margin: 0; font-size: 13px; color: var(--muted); }
-.zoom {
-  right: 16px;
-  gap: 0;
+.dock { left: 50%; bottom: 16px; transform: translateX(-50%); gap: 2px; padding: 6px; border-radius: 16px; }
+[data-style="sketch"] .dock { padding: 6px 10px; }
+.dock-group { display: flex; gap: 2px; }
+.dock-separator { width: 1px; height: 34px; margin: 0 6px; background: var(--border); flex-shrink: 0; }
+[data-style="sketch"] .dock-separator { background: var(--menu-border); }
+.dock-btn {
+  min-width: 72px;
+  height: 58px;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
   border-radius: 10px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
 }
-.zoom-value { min-width: 52px; text-align: center; font-size: 13px; }
+.dock-btn[data-type] svg { color: var(--tc); }
+.dock-btn:hover { background: var(--tb, var(--surface-muted)); }
+.dock-btn.is-icon { min-width: 44px; padding: 0; }
+.dock-btn.is-icon:hover { background: var(--surface-muted); }
+.dock-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+[data-style="sketch"] .dock-btn { border-radius: 999px; min-width: 76px; font-family: var(--font-title); font-size: 17px; font-weight: 600; gap: 2px; }
+[data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
+[data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
 
-/* Skizzenbuch: schwebende Pillen statt Leiste */
-[data-style="sketch"] .toolbar { top: 12px; left: 16px; right: 16px; padding: 0; background: transparent; border: 0; }
-[data-style="sketch"] .toolbar-group,
-[data-style="sketch"] .zoom {
-  height: auto;
-  padding: 4px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  box-shadow: none;
-}
-[data-style="sketch"] .brand { padding: 4px 16px; height: 50px; }
-[data-style="sketch"] .brand-mark { display: none; }
-[data-style="sketch"] .brand-name { font-family: var(--font-title); font-size: 28px; line-height: 1; }
-[data-style="sketch"] .brand-world::before { content: ""; }
-[data-style="sketch"] .tool-btn { border-radius: 999px; font-size: 14px; font-weight: 400; }
-[data-style="sketch"] .tool-btn[data-type] { background: var(--tb); }
-[data-style="sketch"] .tool-btn[data-type] svg { color: var(--tf); }
-[data-style="sketch"] .tool-btn[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: none; }
-[data-style="sketch"] .toolbar-right > .icon-btn { width: 50px; height: 50px; }
-[data-style="sketch"] .save-status { padding: 0 14px; height: 50px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); }
-[data-style="sketch"] .hint { font-family: var(--font-title); font-size: 20px; }
+.hint { position: absolute; z-index: 10; left: 20px; bottom: 22px; margin: 0; max-width: calc(50% - 330px); font-size: 13px; line-height: 1.4; color: var(--muted); }
+[data-style="sketch"] .hint { font-family: var(--font-title); font-size: 19px; }
+.zoom { right: 16px; bottom: 16px; padding: 4px; gap: 0; }
+.zoom-value { min-width: 52px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+/* Ist neben dem Dock kein Platz, entfällt der Hinweis */
+@media (max-width: 1360px) { .hint { display: none; } }
+/* Bei schmalen Fenstern rückt der Zoom über das Dock, damit sich beide nicht überlappen */
+@media (max-width: 1080px) { .zoom { bottom: 94px; } }
 
 /* ------------------------------------------------------------------ Leinwand */
 
-.canvas { position: absolute; inset: var(--canvas-top) 0 0 0; }
+.canvas { position: absolute; inset: 0; }
 
 .react-flow {
   --xy-background-color: var(--bg);

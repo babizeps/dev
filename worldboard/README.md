@@ -53,15 +53,15 @@ einen Hinweis. Dann kopierst du die neueste Datei aus `backups/` zurück nach `w
 
 | Aktion | So geht's |
 |---|---|
-| Neue Karte | Doppelklick auf die Leinwand oder Typ oben in der Leiste wählen |
+| Neue Karte | Doppelklick auf die Leinwand oder einen Typ im Dock unten wählen |
 | Kartentyp ändern | Karte anklicken und einen Farbpunkt darüber wählen, auf die Typ-Plakette klicken oder bei ausgewählter Karte die Tasten 1–6 drücken |
 | Weitere Aktionen | Rechtsklick auf eine Karte oder ⋯ über der ausgewählten Karte: Bild hinzufügen, Duplizieren (Strg/Cmd+D), Breite zurücksetzen, Löschen |
 | Bild hinzufügen | Bild auf eine Karte ziehen oder mit Strg+V einfügen (in die Karte, in der du schreibst oder die ausgewählt ist, sonst als neue Karte) |
 | Verbinden | Punkt rechts an der Karte auf eine andere Karte ziehen |
 | Breite ändern | Karte anklicken, Griff unten rechts ziehen |
 | Löschen | Karte oder Linie anklicken, dann Entf |
-| Rückgängig / Wiederholen | Strg+Z / Strg+Umschalt+Z (oder Strg+Y), auf dem Mac mit Cmd, oder die Pfeile oben |
-| Stil und Modus | Oben rechts: Studio/Skizze und Sonne/Mond |
+| Rückgängig / Wiederholen | Strg+Z / Strg+Umschalt+Z (oder Strg+Y), auf dem Mac mit Cmd, oder die Pfeile im Dock |
+| Stil und Modus | Oben rechts auf Sonne bzw. Mond klicken: Studio/Skizze und Tag/Nacht |
 
 Alles wird automatisch gespeichert, auch beim Schließen des Fensters.
 
