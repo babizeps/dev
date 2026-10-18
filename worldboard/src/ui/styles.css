@@ -234,38 +234,89 @@ button svg { flex-shrink: 0; }
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 220px;
-  padding: 10px;
+  width: 320px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  border-radius: 12px;
+  gap: 12px;
+  border-radius: 16px;
   background: var(--menu-bg);
   border: 1px solid var(--menu-border);
   box-shadow: var(--menu-shadow);
 }
-[data-style="sketch"] .view-menu { border: 1.5px solid var(--border); border-radius: 14px; }
-.view-menu-label { padding: 2px 2px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.segmented { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 10px; background: var(--surface-muted); }
-.segmented button {
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+[data-style="sketch"] .view-menu { border: 1.5px solid var(--border); border-radius: 18px; }
+.view-menu-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.view-menu-separator { height: 1px; margin: 2px 0; background: var(--menu-border); }
+
+.style-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.style-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
   border: 0;
-  border-radius: 7px;
   background: transparent;
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
+  text-align: left;
   cursor: pointer;
 }
-.segmented.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.segmented button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
-[data-style="sketch"] .segmented,
-[data-style="sketch"] .segmented button { border-radius: 999px; }
-[data-style="sketch"] .segmented button[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: none; }
+.style-preview {
+  position: relative;
+  display: block;
+  height: 74px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--menu-border);
+  background-size: 8px 8px;
+  transition: box-shadow 120ms ease;
+}
+.style-tile:hover .style-preview { box-shadow: 0 0 0 1px var(--muted); }
+.style-tile[aria-pressed="true"] .style-preview { box-shadow: 0 0 0 2px var(--accent); }
+.style-preview-card { position: absolute; left: 22px; top: 18px; width: 82px; height: 38px; box-sizing: border-box; }
+/* Die Vorschauen zeigen beide Stile im aktuellen Modus, unabhängig vom gerade gewählten Stil. */
+.style-preview.is-studio { background-color: #f4f4f1; background-image: radial-gradient(#d6d6d0 1px, transparent 1px); }
+.style-preview.is-studio .style-preview-card { border-radius: 5px; background: #ffffff; border-top: 3px solid #e0643b; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
+.style-preview.is-sketch { background-color: #fafaf7; background-image: radial-gradient(#cfcfc8 1px, transparent 1px); }
+.style-preview.is-sketch .style-preview-card {
+  padding: 3px 7px;
+  background: #ffe1d6;
+  color: #26251f;
+  transform: rotate(-3deg);
+  box-shadow: 0 2px 4px rgba(38, 37, 31, 0.12);
+  font-family: "Caveat", cursive;
+  font-size: 16px;
+  font-weight: 700;
+}
+[data-mode="dark"] .style-preview.is-studio,
+[data-mode="dark"] .style-preview.is-sketch { background-color: #1c1b18; background-image: radial-gradient(#3a3832 1px, transparent 1px); }
+[data-mode="dark"] .style-preview.is-studio .style-preview-card { background: #2a2924; border-top-color: #ffc4ae; box-shadow: none; }
+[data-mode="dark"] .style-preview.is-sketch .style-preview-card { background: #4a2e26; color: #f2efe6; }
+
+.mode-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mode-tile {
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--menu-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.mode-tile:hover { background: var(--menu-hover); }
+.mode-tile[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--t-fraktion-bg);
+  color: var(--t-fraktion-fg);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+[data-style="sketch"] .mode-tile { border-radius: 14px; }
 
 .dock {
   left: 50%;

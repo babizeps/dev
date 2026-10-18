@@ -62,7 +62,7 @@ einen Hinweis. Dann kopierst du die neueste Datei aus `backups/` zurück nach `w
 | Löschen | Karte oder Linie anklicken, dann Entf |
 | Rückgängig / Wiederholen | Strg+Z / Strg+Umschalt+Z (oder Strg+Y), auf dem Mac mit Cmd, oder die Pfeile im Dock |
 | Welt umbenennen | Oben links auf den Namen klicken und überschreiben |
-| Stil und Modus | Oben rechts auf Sonne bzw. Mond klicken: Studio/Skizze und Tag/Nacht/Auto (Auto folgt der Systemeinstellung) |
+| Stil und Modus | Oben rechts auf Sonne bzw. Mond klicken: Studio oder Skizzenbuch per Vorschau wählen, dazu Hell, Dunkel oder Auto (Auto folgt der Systemeinstellung) |
 
 Alles wird automatisch gespeichert, auch beim Schließen des Fensters. Der Punkt oben rechts zeigt den Stand:
 grün = gespeichert, grau = speichert gerade, rot = Fehler (dann steht dort auch ein Hinweis).

@@ -11,12 +11,12 @@ import { useTheme, type ModeSetting, type ThemeStyle } from "./theme";
 
 const STYLES: { value: ThemeStyle; label: string }[] = [
   { value: "studio", label: "Studio" },
-  { value: "sketch", label: "Skizze" },
+  { value: "sketch", label: "Skizzenbuch" },
 ];
 
 const MODES: { value: ModeSetting; label: string; name: string }[] = [
-  { value: "light", label: "Tag", name: "Tagmodus" },
-  { value: "dark", label: "Nacht", name: "Nachtmodus" },
+  { value: "light", label: "Hell", name: "Tagmodus" },
+  { value: "dark", label: "Dunkel", name: "Nachtmodus" },
   { value: "auto", label: "Auto", name: "Automatisch wie das System" },
 ];
 
@@ -90,25 +90,37 @@ function StatusIsland({ theme }: { theme: ReturnType<typeof useTheme> }) {
       {open && (
         <div className="view-menu" role="dialog" aria-label="Ansicht">
           <div className="view-menu-label">Stil</div>
-          <div className="segmented" role="group" aria-label="Stil">
+          <div className="style-tiles" role="group" aria-label="Stil">
             {STYLES.map((s) => (
-              <button key={s.value} type="button" aria-pressed={theme.style === s.value} onClick={() => theme.setStyle(s.value)}>
+              <button
+                key={s.value}
+                type="button"
+                className="style-tile"
+                aria-pressed={theme.style === s.value}
+                onClick={() => theme.setStyle(s.value)}
+              >
+                {/* Kleine Vorschau einer Karte im jeweiligen Stil */}
+                <span className={`style-preview is-${s.value}`} aria-hidden="true">
+                  <span className="style-preview-card">{s.value === "sketch" ? "Mira" : ""}</span>
+                </span>
                 {s.label}
               </button>
             ))}
           </div>
-          <div className="view-menu-label">Modus</div>
-          <div className="segmented is-three" role="group" aria-label="Modus">
+          <div className="view-menu-separator" />
+          <div className="view-menu-label">Erscheinungsbild</div>
+          <div className="mode-tiles" role="group" aria-label="Erscheinungsbild">
             {MODES.map((m) => (
               <button
                 key={m.value}
                 type="button"
+                className="mode-tile"
                 aria-label={m.name}
                 title={m.name}
                 aria-pressed={theme.modeSetting === m.value}
                 onClick={() => theme.setModeSetting(m.value)}
               >
-                {m.value === "dark" ? <MoonIcon size={15} /> : m.value === "auto" ? <AutoIcon size={15} /> : <SunIcon size={15} />}
+                {m.value === "dark" ? <MoonIcon size={19} /> : m.value === "auto" ? <AutoIcon size={19} /> : <SunIcon size={19} />}
                 {m.label}
               </button>
             ))}
