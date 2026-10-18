@@ -1,0 +1,153 @@
+import { ROOT_BOARD_ID } from "./migrations";
+import type { Card, CardType, Edge, World } from "./types";
+
+/**
+ * Alle Änderungen an einer Welt laufen über diese Funktionen.
+ * Sie sind rein (geben eine neue Welt zurück) und setzen updatedAt immer selbst,
+ * damit der spätere Sync jede Änderung erkennt.
+ */
+
+export const newId = (): string => crypto.randomUUID();
+
+export function liveCards(world: World): Card[] {
+  return world.cards.filter((c) => c.deletedAt === null);
+}
+
+export function liveEdges(world: World): Edge[] {
+  const live = new Set(liveCards(world).map((c) => c.id));
+  return world.edges.filter((e) => e.deletedAt === null && live.has(e.from) && live.has(e.to));
+}
+
+export interface NewCard {
+  type: CardType;
+  x: number;
+  y: number;
+  title?: string;
+  image?: string | null;
+}
+
+export function addCard(world: World, input: NewCard, now = Date.now(), id: string = newId()): World {
+  const card: Card = {
+    id,
+    boardId: ROOT_BOARD_ID,
+    type: input.type,
+    x: input.x,
+    y: input.y,
+    width: null,
+    title: input.title ?? "",
+    text: "",
+    image: input.image ?? null,
+    fields: {},
+    updatedAt: now,
+    deletedAt: null,
+  };
+  return { ...world, cards: [...world.cards, card] };
+}
+
+export type CardPatch = Partial<Pick<Card, "type" | "title" | "text" | "image" | "x" | "y" | "width">>;
+
+export function updateCard(world: World, id: string, patch: CardPatch, now = Date.now()): World {
+  let changed = false;
+  const cards = world.cards.map((c) => {
+    if (c.id !== id || c.deletedAt !== null) return c;
+    const keys = Object.keys(patch) as (keyof CardPatch)[];
+    if (keys.every((k) => c[k] === patch[k])) return c;
+    changed = true;
+    return { ...c, ...patch, updatedAt: now };
+  });
+  return changed ? { ...world, cards } : world;
+}
+
+export function connect(world: World, from: string, to: string, now = Date.now(), id: string = newId()): World {
+  if (from === to) return world;
+  const live = new Set(liveCards(world).map((c) => c.id));
+  if (!live.has(from) || !live.has(to)) return world;
+  const exists = liveEdges(world).some(
+    (e) => (e.from === from && e.to === to) || (e.from === to && e.to === from),
+  );
+  if (exists) return world;
+  const edge: Edge = { id, boardId: ROOT_BOARD_ID, from, to, label: "", updatedAt: now, deletedAt: null };
+  return { ...world, edges: [...world.edges, edge] };
+}
+
+/** Markiert Karten als gelöscht, zusammen mit allen ihren Verbindungen. */
+export function removeCards(world: World, ids: string[], now = Date.now()): World {
+  const remove = new Set(ids);
+  if (remove.size === 0) return world;
+  return {
+    ...world,
+    cards: world.cards.map((c) =>
+      remove.has(c.id) && c.deletedAt === null ? { ...c, deletedAt: now, updatedAt: now } : c,
+    ),
+    edges: world.edges.map((e) =>
+      (remove.has(e.from) || remove.has(e.to)) && e.deletedAt === null
+        ? { ...e, deletedAt: now, updatedAt: now }
+        : e,
+    ),
+  };
+}
+
+export function removeEdges(world: World, ids: string[], now = Date.now()): World {
+  const remove = new Set(ids);
+  if (remove.size === 0) return world;
+  return {
+    ...world,
+    edges: world.edges.map((e) =>
+      remove.has(e.id) && e.deletedAt === null ? { ...e, deletedAt: now, updatedAt: now } : e,
+    ),
+  };
+}
+
+export function moveCards(world: World, positions: { id: string; x: number; y: number }[], now = Date.now()): World {
+  return positions.reduce((w, p) => updateCard(w, p.id, { x: p.x, y: p.y }, now), world);
+}
+
+interface SyncRecord {
+  id: string;
+  updatedAt: number;
+  deletedAt: number | null;
+}
+
+function restoreRecords<T extends SyncRecord>(current: T[], target: T[], now: number): T[] {
+  const currentById = new Map(current.map((r) => [r.id, r]));
+  const targetIds = new Set(target.map((r) => r.id));
+  // Alles, was sich gegenüber jetzt ändert, bekommt einen neuen Zeitstempel.
+  const restored = target.map((r) => (currentById.get(r.id) === r ? r : { ...r, updatedAt: now }));
+  // Was es im Ziel noch nicht gab, wird nicht entfernt, sondern als gelöscht markiert.
+  for (const r of current) {
+    if (!targetIds.has(r.id)) restored.push(r.deletedAt === null ? { ...r, deletedAt: now, updatedAt: now } : r);
+  }
+  return restored;
+}
+
+/**
+ * Setzt die Welt auf einen früheren Stand zurück (Rückgängig/Wiederholen).
+ * Anders als ein einfaches Zurückspringen bleiben Zeitstempel und Gelöscht-Vermerke
+ * dabei korrekt, damit der spätere Sync auch Rückgängig-Schritte überträgt.
+ */
+export function restore(current: World, target: World, now = Date.now()): World {
+  return {
+    ...target,
+    boards: restoreRecords(current.boards, target.boards, now),
+    cards: restoreRecords(current.cards, target.cards, now),
+    edges: restoreRecords(current.edges, target.edges, now),
+  };
+}
+
+/** Kopiert eine Karte leicht versetzt, ohne ihre Verbindungen. */
+export function duplicateCard(world: World, id: string, now = Date.now(), newCardId: string = newId()): World {
+  const card = world.cards.find((c) => c.id === id && c.deletedAt === null);
+  if (!card) return world;
+  const copy = { ...card, id: newCardId, x: card.x + 32, y: card.y + 32, fields: { ...card.fields }, updatedAt: now };
+  return { ...world, cards: [...world.cards, copy] };
+}
+
+export function renameBoard(world: World, id: string, name: string, now = Date.now()): World {
+  let changed = false;
+  const boards = world.boards.map((b) => {
+    if (b.id !== id || b.deletedAt !== null || b.name === name) return b;
+    changed = true;
+    return { ...b, name, updatedAt: now };
+  });
+  return changed ? { ...world, boards } : world;
+}

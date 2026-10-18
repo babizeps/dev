@@ -1,0 +1,999 @@
+/* ------------------------------------------------------------------
+   Themes: Stil (studio | sketch) × Modus (light | dark)
+   Pro Kartentyp: --t-<typ>     Akzent (Streifen, Symbole)
+                  --t-<typ>-fg  Text auf Plakette
+                  --t-<typ>-bg  Plakette (Studio) bzw. Zettelfarbe (Skizze)
+   ------------------------------------------------------------------ */
+
+:root,
+:root[data-style="studio"][data-mode="light"] {
+  --bg: #f4f4f1;
+  --dot: #d6d6d0;
+  --surface: #ffffff;
+  --surface-muted: #eeeeea;
+  --border: #e3e3de;
+  --text: #1e1e1c;
+  --muted: #5f5f5a;
+  --body: #5f5f5a;
+  --accent: #3d6fd9;
+  --edge: #b4b4ad;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.05);
+  --tape: transparent;
+
+  --t-notiz: #9a9a93;      --t-notiz-fg: #4a4a46;      --t-notiz-bg: #eeeeea;
+  --t-figur: #e0643b;      --t-figur-fg: #a33e1c;      --t-figur-bg: #fcebe4;
+  --t-ort: #2e8b6e;        --t-ort-fg: #1d6650;        --t-ort-bg: #e1f2ec;
+  --t-fraktion: #3d6fd9;   --t-fraktion-fg: #2a52a8;   --t-fraktion-bg: #e4ecfb;
+  --t-ereignis: #d9a02b;   --t-ereignis-fg: #7d5806;   --t-ereignis-bg: #fbf0d6;
+  --t-gegenstand: #7a5bc7; --t-gegenstand-fg: #5b3fa6; --t-gegenstand-bg: #eee7fb;
+
+  --menu-bg: #ffffff;
+  --menu-border: #e3e3de;
+  --menu-hover: #f0f0ec;
+  --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  --island-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --danger: #b4321c;
+}
+
+:root[data-style="sketch"][data-mode="light"] {
+  --bg: #fafaf7;
+  --dot: #cfcfc8;
+  --surface: #ffffff;
+  --surface-muted: #f0eee8;
+  --border: #26251f;
+  --text: #26251f;
+  --muted: #5c5a52;
+  --body: #26251f;
+  /* Tinte statt Violett: Auswahl und Verbindungen sind in derselben Tinte gezeichnet wie Ränder und Schrift */
+  --accent: #26251f;
+  --edge: #3a3833;
+  --shadow: 0 6px 10px rgba(38, 37, 31, 0.1);
+  --tape: rgba(220, 212, 190, 0.85);
+
+  --t-notiz: #5c5a52;      --t-notiz-fg: #5c5a52;      --t-notiz-bg: #ffffff;
+  --t-figur: #5c3a2e;      --t-figur-fg: #5c3a2e;      --t-figur-bg: #ffe1d6;
+  --t-ort: #2c5444;        --t-ort-fg: #2c5444;        --t-ort-bg: #d8f1e4;
+  /* Speicher-Punkt im selben Grün wie in Studio */
+  --saved: #2e8b6e;
+  --t-fraktion: #2e3e6e;   --t-fraktion-fg: #2e3e6e;   --t-fraktion-bg: #dce5ff;
+  --t-ereignis: #5e4a12;   --t-ereignis-fg: #5e4a12;   --t-ereignis-bg: #fff0c2;
+  --t-gegenstand: #45307a; --t-gegenstand-fg: #45307a; --t-gegenstand-bg: #ebe2ff;
+
+  --menu-bg: #ffffff;
+  --menu-border: #d8d6cc;
+  --menu-hover: #f3f1ea;
+  --menu-shadow: 0 10px 24px rgba(38, 37, 31, 0.14);
+  --island-shadow: none;
+  --danger: #a3301b;
+}
+
+:root[data-style="studio"][data-mode="dark"],
+:root[data-style="sketch"][data-mode="dark"] {
+  --bg: #1c1b18;
+  --dot: #3a3832;
+  --surface: #2a2924;
+  --surface-muted: #23221e;
+  --border: #e8e4d8;
+  --text: #f2efe6;
+  --muted: #b9b4a6;
+  --body: #f2efe6;
+  --accent: #b3a8ff;
+  --edge: #cfc9ba;
+  --shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+  --tape: rgba(255, 250, 235, 0.18);
+
+  --t-notiz: #b9b4a6;      --t-notiz-fg: #b9b4a6;      --t-notiz-bg: #2a2924;
+  --t-figur: #ffc4ae;      --t-figur-fg: #ffc4ae;      --t-figur-bg: #4a2e26;
+  --t-ort: #a8e3c6;        --t-ort-fg: #a8e3c6;        --t-ort-bg: #213d31;
+  --t-fraktion: #bccbff;   --t-fraktion-fg: #bccbff;   --t-fraktion-bg: #283350;
+  --t-ereignis: #ffe08a;   --t-ereignis-fg: #ffe08a;   --t-ereignis-bg: #46391a;
+  --t-gegenstand: #d6c6ff; --t-gegenstand-fg: #d6c6ff; --t-gegenstand-bg: #372b4f;
+
+  --menu-bg: #2f2e29;
+  --menu-border: #45433b;
+  --menu-hover: #3d3b34;
+  --menu-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  --island-shadow: 0 0 0 1px #3a3832, 0 10px 28px rgba(0, 0, 0, 0.45);
+  --danger: #ffb4a3;
+}
+
+/* Im Skizzenbuch ist auch nachts die Tinte der Akzent – hier eben helle Tinte */
+:root[data-style="sketch"][data-mode="dark"] { --accent: #f2efe6; }
+
+/* Studio nutzt die Skizze-Nachtfarben, aber mit dezenten Rahmen statt Tuschelinien */
+:root[data-style="studio"][data-mode="dark"] {
+  --border: #3a3832;
+  --t-notiz-bg: #3a3832;
+}
+
+:root,
+:root[data-style="studio"] {
+  --font-ui: "Manrope", system-ui, sans-serif;
+  --font-title: "Manrope", system-ui, sans-serif;
+  --title-size: 17px;
+  --title-weight: 700;
+  --radius: 10px;
+  --pill: 8px;
+  --tilt-max: 0deg;
+  --edge-width: 1.5;
+}
+
+:root[data-style="sketch"] {
+  --font-ui: "Karla", system-ui, sans-serif;
+  --font-title: "Caveat", "Comic Sans MS", cursive;
+  --title-size: 30px;
+  --title-weight: 700;
+  --radius: 2px;
+  --pill: 999px;
+  --tilt-max: 1.6deg;
+  --edge-width: 1.8;
+}
+
+[data-type="notiz"] { --tc: var(--t-notiz); --tf: var(--t-notiz-fg); --tb: var(--t-notiz-bg); }
+[data-type="figur"] { --tc: var(--t-figur); --tf: var(--t-figur-fg); --tb: var(--t-figur-bg); }
+[data-type="ort"] { --tc: var(--t-ort); --tf: var(--t-ort-fg); --tb: var(--t-ort-bg); }
+[data-type="fraktion"] { --tc: var(--t-fraktion); --tf: var(--t-fraktion-fg); --tb: var(--t-fraktion-bg); }
+[data-type="ereignis"] { --tc: var(--t-ereignis); --tf: var(--t-ereignis-fg); --tb: var(--t-ereignis-bg); }
+[data-type="gegenstand"] { --tc: var(--t-gegenstand); --tf: var(--t-gegenstand-fg); --tb: var(--t-gegenstand-bg); }
+
+/* ------------------------------------------------------------------ Grundlage */
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Symbole behalten ihre Größe, auch wenn es eng wird */
+button svg { flex-shrink: 0; }
+
+.app { position: fixed; inset: 0; overflow: hidden; }
+
+.fatal { max-width: 560px; margin: 15vh auto; padding: 0 16px; }
+
+/* ------------------------------------------------------------------ Inseln und Dock */
+
+/* Schwebende Flächen über der Leinwand: oben Titel und Status, unten Dock und Zoom */
+.island,
+.dock {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--island-shadow);
+}
+[data-style="sketch"] .island,
+[data-style="sketch"] .dock { border: 1.5px solid var(--border); box-shadow: none; border-radius: 999px; }
+
+/* Oben links und rechts: ohne Insel, frei auf der Leinwand – und nur zu sehen, wenn man darüberfährt.
+   Sichtbar bleiben sie beim Bearbeiten, bei Tastaturbedienung, bei offenem Ansicht-Menü und bei einem Speicherfehler. */
+.island.title-island,
+.island.status-island,
+[data-style="sketch"] .island.title-island,
+[data-style="sketch"] .island.status-island {
+  top: 10px;
+  height: 44px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+:root .island.title-island:hover,
+:root .island.title-island:has(:focus-visible),
+:root .island.status-island:hover,
+:root .island.status-island:has(:focus-visible),
+:root .island.status-island.is-pinned { opacity: 1; }
+/* Ohne Maus (Touch) gibt es kein Darüberfahren: dort bleiben beide sichtbar. */
+@media (hover: none) { :root .island.title-island, :root .island.status-island { opacity: 1; } }
+
+.title-island { left: 10px; padding: 0 6px; white-space: nowrap; }
+
+.world-name { display: inline-grid; max-width: 320px; font-family: var(--font-title); font-size: 15px; font-weight: 600; }
+[data-style="sketch"] .world-name { font-size: 24px; font-weight: 700; line-height: 1; }
+.world-name::after,
+.world-name-input { grid-area: 1 / 1; padding: 6px 10px; font: inherit; }
+.world-name::after { content: attr(data-value); visibility: hidden; white-space: pre; overflow: hidden; }
+.world-name-input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-overflow: ellipsis;
+  outline: none;
+}
+.world-name-input:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.world-name-input:focus { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--accent); }
+[data-style="sketch"] .world-name-input { border-radius: 999px; }
+
+.status-island { right: 10px; gap: 2px; padding: 0 4px 0 8px; }
+.status-island .island-btn { color: var(--muted); transition: color 120ms ease, background 120ms ease; }
+.status-island .island-btn:hover,
+.status-island .island-btn[aria-expanded="true"] { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+
+.island-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+}
+.island-btn:hover,
+.island-btn[aria-expanded="true"] { background: var(--surface-muted); }
+[data-style="sketch"] .island-btn { border-radius: 999px; }
+
+.save-status { display: inline-flex; align-items: center; gap: 7px; margin-right: 4px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+/* Normalerweise nur der Punkt; bei einem Fehler wird der Text sichtbar. */
+.save-status:not(.is-error) .save-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.save-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--saved, var(--t-ort)); flex-shrink: 0; transition: background 200ms ease; }
+/* Gespeichert ist der Normalfall: dann kein Punkt (der Platz bleibt, damit die Sonne nicht springt). */
+.save-status.is-saved .save-dot { opacity: 0; }
+.save-status.is-saving .save-dot { background: var(--muted); }
+.save-status.is-error { color: var(--danger); font-weight: 500; }
+.save-status.is-error .save-dot { background: var(--danger); }
+
+.view-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 16px;
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
+  box-shadow: var(--menu-shadow);
+}
+[data-style="sketch"] .view-menu { border: 1.5px solid var(--border); border-radius: 18px; }
+.view-menu-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.view-menu-separator { height: 1px; margin: 2px 0; background: var(--menu-border); }
+
+.style-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.style-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.style-preview {
+  position: relative;
+  display: block;
+  height: 74px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--menu-border);
+  background-size: 8px 8px;
+  transition: box-shadow 120ms ease;
+}
+.style-tile:hover .style-preview { box-shadow: 0 0 0 1px var(--muted); }
+.style-tile[aria-pressed="true"] .style-preview { box-shadow: 0 0 0 2px var(--accent); }
+.style-preview-card { position: absolute; left: 22px; top: 18px; width: 82px; height: 38px; box-sizing: border-box; }
+/* Die Vorschauen zeigen beide Stile im aktuellen Modus, unabhängig vom gerade gewählten Stil. */
+.style-preview.is-studio { background-color: #f4f4f1; background-image: radial-gradient(#d6d6d0 1px, transparent 1px); }
+.style-preview.is-studio .style-preview-card { border-radius: 5px; background: #ffffff; border-top: 3px solid #e0643b; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
+.style-preview.is-sketch { background-color: #fafaf7; background-image: radial-gradient(#cfcfc8 1px, transparent 1px); }
+.style-preview.is-sketch .style-preview-card {
+  padding: 3px 7px;
+  background: #ffe1d6;
+  color: #26251f;
+  transform: rotate(-3deg);
+  box-shadow: 0 2px 4px rgba(38, 37, 31, 0.12);
+  font-family: "Caveat", cursive;
+  font-size: 16px;
+  font-weight: 700;
+}
+[data-mode="dark"] .style-preview.is-studio,
+[data-mode="dark"] .style-preview.is-sketch { background-color: #1c1b18; background-image: radial-gradient(#3a3832 1px, transparent 1px); }
+[data-mode="dark"] .style-preview.is-studio .style-preview-card { background: #2a2924; border-top-color: #ffc4ae; box-shadow: none; }
+[data-mode="dark"] .style-preview.is-sketch .style-preview-card { background: #4a2e26; color: #f2efe6; }
+
+.mode-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mode-tile {
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--menu-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.mode-tile:hover { background: var(--menu-hover); }
+.mode-tile[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--t-fraktion-bg);
+  color: var(--t-fraktion-fg);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+[data-style="sketch"] .mode-tile { border-radius: 14px; }
+
+.dock {
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+/* Ausgeblendet gleitet das Dock unter den Fensterrand; es erscheint, sobald die Maus unten ist. */
+.dock.is-hidden { transform: translate(-50%, calc(100% + 24px)); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .dock { transition: opacity 120ms linear; } }
+[data-style="sketch"] .dock { padding: 6px 10px; }
+.dock-group { display: flex; gap: 2px; }
+.dock-separator { width: 1px; height: 34px; margin: 0 6px; background: var(--border); flex-shrink: 0; }
+[data-style="sketch"] .dock-separator { background: var(--menu-border); }
+.dock-btn {
+  min-width: 72px;
+  height: 58px;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dock-btn[data-type] svg { color: var(--tc); }
+.dock-btn:hover { background: var(--tb, var(--surface-muted)); }
+.dock-btn.is-icon { min-width: 44px; padding: 0; }
+.dock-btn.is-icon:hover { background: var(--surface-muted); }
+.dock-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+[data-style="sketch"] .dock-btn { border-radius: 999px; min-width: 76px; font-family: var(--font-title); font-size: 17px; font-weight: 600; gap: 2px; }
+[data-style="sketch"] .dock-btn[data-type] svg { color: var(--tf); }
+/* Die Notiz-Farbe ist im Skizzenbuch die Papierfarbe selbst – beim Darüberfahren daher ein leichter Tintenschimmer. */
+[data-style="sketch"] .dock-btn[data-type="notiz"]:hover { background: color-mix(in srgb, var(--text) 9%, var(--surface)); }
+[data-style="sketch"] .dock-btn.is-icon { min-width: 46px; }
+
+/* Zoom ohne Insel: nur die Zahl, zart auf der Leinwand, beim Darüberfahren kräftiger */
+.island.zoom,
+[data-style="sketch"] .island.zoom { right: 12px; bottom: 12px; padding: 0; background: transparent; border: 0; box-shadow: none; transition: bottom 200ms ease, opacity 160ms ease, transform 160ms ease; }
+.zoom.is-hidden { opacity: 0; transform: translateY(6px); pointer-events: none; }
+.zoom-btn {
+  height: 28px;
+  min-width: 52px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.7;
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+.zoom-btn:hover,
+.zoom-btn:focus-visible { color: var(--text); opacity: 1; }
+/* Bei schmalen Fenstern rückt der Zoom über das Dock, damit sich beide nicht überlappen */
+@media (max-width: 1080px) { .dock:not(.is-hidden) ~ .zoom { bottom: 94px; } }
+/* Ohne Maus (Touch) gibt es kein Darüberfahren: dort bleibt das Dock sichtbar. */
+@media (hover: none) { .dock.is-hidden { transform: translateX(-50%); opacity: 1; pointer-events: auto; } }
+
+/* ------------------------------------------------------------------ Leinwand */
+
+.canvas { position: absolute; inset: 0; }
+
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-background-pattern-color: var(--dot);
+  --xy-edge-stroke: var(--edge);
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-edge-stroke-width: var(--edge-width);
+  --xy-connectionline-stroke: var(--accent);
+  --xy-connectionline-stroke-width: 2;
+  --xy-node-boxshadow-selected: none;
+}
+.react-flow__edge.selected .react-flow__edge-path { stroke-width: 2.5; }
+.react-flow__node-card:focus-visible { outline: none; }
+.react-flow__node-card:focus-visible .card { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.empty-hint {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted);
+  pointer-events: none;
+}
+[data-style="sketch"] .empty-hint { font-family: var(--font-title); font-size: 28px; line-height: 1.2; }
+
+/* ------------------------------------------------------------------ Karte */
+
+.card {
+  --tilt: 0;
+  position: relative;
+  width: 100%;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transform: rotate(calc(var(--tilt) * var(--tilt-max)));
+  transition: transform 120ms ease, outline-color 120ms ease;
+}
+.card.is-selected,
+.card.is-connect-target { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card.is-drop { outline: 2px dashed var(--accent); outline-offset: 4px; }
+
+[data-style="studio"] .card { border-top: 4px solid var(--tc); }
+[data-style="studio"] .card:has(.card-image) { border-top: 0; }
+
+[data-style="sketch"] .card { background: var(--tb); }
+[data-style="sketch"] .card[data-type="notiz"] { box-shadow: none; outline: 1.5px dashed var(--muted); outline-offset: 0; }
+[data-style="sketch"] .card[data-type="notiz"].is-selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-style="sketch"] .card:has(.card-image) { background: var(--surface); padding: 10px 10px 0; }
+
+.card-tape { display: none; }
+[data-style="sketch"] .card-tape {
+  display: block;
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 68px;
+  height: 20px;
+  background: var(--tape);
+  transform: translateX(-50%) rotate(calc(var(--tilt) * -4deg));
+  pointer-events: none;
+}
+[data-style="sketch"] .card[data-type="notiz"] .card-tape { display: none; }
+
+.card-image { position: relative; }
+.card-image img { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--radius) var(--radius) 0 0; }
+[data-style="sketch"] .card-image img { border-radius: 0; }
+.card-image-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.card:hover .card-image-remove,
+.card-image-remove:focus-visible { opacity: 1; }
+
+.card-body { padding: 14px 16px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+[data-style="sketch"] .card-body { padding: 16px 18px 14px; gap: 2px; }
+
+.card-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--pill);
+  background: var(--tb);
+  color: var(--tf);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.card-type:hover { filter: brightness(1.08); }
+.card-type[aria-expanded="true"] { outline: 2px solid var(--accent); outline-offset: 1px; }
+[data-style="sketch"] .card-type { padding: 0; background: transparent; font-size: 13px; }
+
+.card-title,
+.card-text {
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  outline: none;
+}
+.card-title {
+  margin-top: 6px;
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  line-height: 1.2;
+}
+[data-style="sketch"] .card-title { margin-top: 0; line-height: 1.05; }
+.card-text {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--body);
+}
+.card-title::placeholder,
+.card-text::placeholder { color: var(--muted); opacity: 0.7; }
+.card-title:focus,
+.card-text:focus { box-shadow: 0 1px 0 var(--accent); }
+
+/* Beim Schieben und Zoomen: die Leinwand als eigene Grafikebene verschieben statt jedes Bild neu zu malen,
+   und Karten nicht auf den durchrutschenden Zeiger reagieren lassen. Danach wird wieder scharf gezeichnet. */
+.react-flow.is-moving .react-flow__viewport { will-change: transform; }
+.react-flow.is-moving .react-flow__node { pointer-events: none; }
+
+/* Anfasser zum Verbinden: Punkt rechts, sichtbar beim Darüberfahren */
+.react-flow__handle.handle-source {
+  width: 16px;
+  height: 16px;
+  right: -8px;
+  border: 2px solid var(--accent);
+  background: var(--surface);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.card:hover .handle-source,
+.card.is-selected .handle-source,
+.react-flow__handle.handle-source.connectingfrom { opacity: 1; }
+
+/* Unsichtbares Ziel über der ganzen Karte, nur aktiv während eine Verbindung gezogen wird */
+.react-flow__handle.handle-target {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  transform: none;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow__handle.handle-target.is-active { pointer-events: all; }
+
+/* Breite ändern: Griff unten rechts an der ausgewählten Karte */
+.react-flow__resize-control.card-resize {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  transform: translate(-60%, -60%);
+  cursor: ew-resize;
+}
+.card-resize span {
+  position: absolute;
+  inset: 6px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  border-bottom-right-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ Typ-Auswahl */
+
+.card-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
+  box-shadow: var(--menu-shadow);
+  font-size: 14px;
+}
+[data-style="sketch"] .card-menu { border: 1.5px solid var(--border); border-radius: 14px; }
+.card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.card-menu-item:hover,
+.card-menu-item:focus-visible { background: var(--menu-hover); outline: none; }
+.card-menu-item[aria-checked="true"] { font-weight: 700; }
+.card-menu-label { position: relative; }
+.card-menu-end { margin-left: auto; display: inline-flex; align-items: center; }
+.card-menu-item kbd { font: inherit; font-size: 12px; color: var(--muted); }
+.card-menu-check { color: var(--accent); }
+.type-chip {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--tb);
+  color: var(--tf);
+}
+/* Im Skizzenbuch ist die Notiz-Farbe weiß – ein feiner Rand hält den Punkt sichtbar. */
+[data-style="sketch"] [data-type="notiz"] > .type-chip { box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+/* ------------------------------------------------------------------ Skizzenbuch: Dock und Typ-Menü */
+
+/* Handgezeichnete Ränder: ungleiche Ecken und eine zweite, leicht verdrehte Tintenlinie. */
+[data-style="sketch"] .dock { border-radius: 30px 56px 36px 52px / 40px 30px 42px 28px; }
+[data-style="sketch"] .card-menu { border-radius: 22px 8px 18px 10px / 10px 20px 8px 22px; }
+[data-style="sketch"] .dock::before,
+[data-style="sketch"] .card-menu::before {
+  content: "";
+  position: absolute;
+  inset: -4px -3px -2px -5px;
+  border: 1.3px solid var(--border);
+  border-radius: inherit;
+  opacity: 0.5;
+  transform: rotate(-0.5deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .card-menu::before { transform: rotate(0.7deg); }
+
+/* Textmarker statt Fläche: ein schräger Strich hinter dem Wort, in der Farbe des Kartentyps. */
+[data-style="sketch"] [data-type] { --marker: color-mix(in srgb, var(--tb), var(--tc) 22%); }
+[data-style="sketch"] .dock-btn[data-type]:hover { background: transparent; }
+[data-style="sketch"] .dock-btn[data-type] > span,
+[data-style="sketch"] .card-menu-label { position: relative; z-index: 0; }
+[data-style="sketch"] .dock-btn[data-type] > span::before,
+[data-style="sketch"] .card-menu-label::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -6px;
+  right: -7px;
+  bottom: 0.08em;
+  height: 0.5em;
+  background: var(--marker);
+  border-radius: 3px 9px 4px 10px;
+  transform: rotate(-2.5deg) scaleX(0);
+  transform-origin: left center;
+  transition: transform 140ms ease-out;
+}
+[data-style="sketch"] .dock-btn[data-type]:hover > span::before,
+[data-style="sketch"] .dock-btn[data-type]:focus-visible > span::before,
+[data-style="sketch"] .card-menu-item:hover .card-menu-label::before,
+[data-style="sketch"] .card-menu-item:focus-visible .card-menu-label::before { transform: rotate(-2.5deg) scaleX(1); }
+[data-style="sketch"] .card-menu-item:hover,
+[data-style="sketch"] .card-menu-item:focus-visible { background: transparent; }
+
+/* Bleistiftstrich statt gerader Trennlinie */
+[data-style="sketch"] .dock-separator {
+  width: 10px;
+  height: 40px;
+  margin: 0 2px;
+  background: var(--muted);
+  opacity: 0.55;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 40%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M5.5 2c-1 6 1 12 0 18s-1.2 12 .3 18%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.6%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 40%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M5.5 2c-1 6 1 12 0 18s-1.2 12 .3 18%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.6%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+/* Typ-Menü als angeklebter Zettel in Handschrift */
+[data-style="sketch"] .card-menu { font-family: var(--font-title); font-size: 23px; font-weight: 600; transform: rotate(-1deg); padding: 10px 8px 8px; }
+[data-style="sketch"] .card-menu::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 20px;
+  margin-left: -36px;
+  background: var(--tape);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .card-menu-item { min-height: 42px; gap: 12px; }
+[data-style="sketch"] .card-menu-item[aria-checked="true"] { font-weight: 700; }
+
+/* Der aktuelle Typ wird eingekreist statt abgehakt. */
+[data-style="sketch"] .card-menu-check { display: none; }
+[data-style="sketch"] .card-menu-item .type-chip { position: relative; }
+[data-style="sketch"] .card-menu-item[aria-checked="true"] .type-chip::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  background: var(--text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 50 50%27%3E%3Cpath d=%27M27 4.5c11 .5 19 8.5 18.5 20S36 45.5 24 45.5 4.5 37 4.8 24.5 14 3 30 5.8%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 50 50%27%3E%3Cpath d=%27M27 4.5c11 .5 19 8.5 18.5 20S36 45.5 24 45.5 4.5 37 4.8 24.5 14 3 30 5.8%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / contain no-repeat;
+  pointer-events: none;
+}
+
+/* Tastenziffern nur in der Zeile unter der Maus, klein in Handschrift */
+[data-style="sketch"] .card-menu-item kbd { font-family: var(--font-title); font-size: 18px; color: var(--muted); opacity: 0; transition: opacity 120ms ease; }
+[data-style="sketch"] .card-menu-item:hover kbd,
+[data-style="sketch"] .card-menu-item:focus-visible kbd { opacity: 0.8; }
+
+/* ------------------------------------------------------------------ Skizzenbuch: Karte und Ansicht-Menü */
+
+/* Plakette und Beschreibung in derselben Handschrift wie der Titel */
+[data-style="sketch"] .card-type { height: auto; font-family: var(--font-title); font-size: 19px; font-weight: 600; }
+[data-style="sketch"] .card-text { font-family: var(--font-title); font-size: 20px; font-weight: 500; line-height: 1.2; }
+
+/* Beim Schreiben: ein zarter Textmarker hinter dem Feld statt einer Linie */
+[data-style="sketch"] .card-title:focus,
+[data-style="sketch"] .card-text:focus {
+  box-shadow: none;
+  background: color-mix(in srgb, #ffe48f 55%, transparent);
+  border-radius: 3px 8px 4px 9px;
+  margin-inline: -5px;
+  padding-inline: 5px;
+  width: calc(100% + 10px);
+}
+[data-mode="dark"][data-style="sketch"] .card-title:focus,
+[data-mode="dark"][data-style="sketch"] .card-text:focus { background: rgba(255, 228, 143, 0.16); }
+
+/* Ansicht-Menü als angeklebter Zettel */
+[data-style="sketch"] .view-menu {
+  padding: 20px 20px 14px;
+  gap: 10px;
+  border: 2px solid var(--border);
+  border-radius: 22px 8px 18px 10px / 10px 20px 8px 22px;
+  transform: rotate(-1deg);
+}
+[data-style="sketch"] .view-menu::before {
+  content: "";
+  position: absolute;
+  inset: -4px -3px -2px -5px;
+  border: 1.3px solid var(--border);
+  border-radius: inherit;
+  opacity: 0.5;
+  transform: rotate(0.7deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .view-menu::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 20px;
+  margin-left: -36px;
+  background: var(--tape);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+[data-style="sketch"] .view-menu-label { font-family: var(--font-title); font-size: 26px; font-weight: 700; line-height: 1; }
+[data-style="sketch"] .view-menu-separator {
+  height: 10px;
+  margin: 4px 0 0;
+  background: var(--muted);
+  opacity: 0.6;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 200 10%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M2 5c25-2 45 1.5 70 0s45-2 70-.3 40 1.5 56-.4%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 200 10%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M2 5c25-2 45 1.5 70 0s45-2 70-.3 40 1.5 56-.4%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+/* Stile als kleine Polaroids */
+[data-style="sketch"] .style-tiles { gap: 18px; padding: 4px 6px 2px; }
+[data-style="sketch"] .style-tile {
+  position: relative;
+  gap: 2px;
+  padding: 7px 7px 4px;
+  background: var(--surface);
+  box-shadow: 0 2px 6px rgba(38, 37, 31, 0.16);
+  font-family: var(--font-title);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+  transform: rotate(-2deg);
+  transition: transform 120ms ease;
+}
+[data-style="sketch"] .style-tile:nth-child(2) { transform: rotate(1.5deg); }
+[data-style="sketch"] .style-tile:hover { transform: rotate(0deg) translateY(-2px); }
+[data-style="sketch"] .style-tile .style-preview,
+[data-style="sketch"] .style-tile:hover .style-preview,
+[data-style="sketch"] .style-tile[aria-pressed="true"] .style-preview { border-radius: 0; box-shadow: none; }
+[data-mode="dark"][data-style="sketch"] .style-tile { background: #3a3832; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+
+/* Modus: Symbol und Handschrift, ohne Kasten */
+[data-style="sketch"] .mode-tile {
+  position: relative;
+  height: 62px;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-title);
+  font-size: 21px;
+  font-weight: 600;
+}
+[data-style="sketch"] .mode-tile:hover { background: transparent; }
+[data-style="sketch"] .mode-tile[aria-pressed="true"] { background: transparent; color: var(--text); box-shadow: none; font-weight: 700; }
+
+/* Die Auswahl wird eingekreist; beim Darüberfahren deutet sich der Kringel schon an. */
+[data-style="sketch"] .style-tile::after,
+[data-style="sketch"] .mode-tile::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  background: var(--text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M55 4C80 4 97 18 96 50S78 97 48 96 3 80 4 49 25 2 62 7%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M55 4C80 4 97 18 96 50S78 97 48 96 3 80 4 49 25 2 62 7%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 vector-effect=%27non-scaling-stroke%27/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+[data-style="sketch"] .mode-tile::after { inset: 0 4px; }
+[data-style="sketch"] .style-tile:hover::after,
+[data-style="sketch"] .mode-tile:hover::after { opacity: 0.3; }
+[data-style="sketch"] .style-tile[aria-pressed="true"]::after,
+[data-style="sketch"] .mode-tile[aria-pressed="true"]::after { opacity: 1; }
+
+/* ------------------------------------------------------------------ Skizzenbuch: Verbinden */
+
+/* Verbindungspunkt als gekritzelter Tintenkreis */
+[data-style="sketch"] .react-flow__handle.handle-source {
+  width: 22px;
+  height: 22px;
+  right: -11px;
+  border: 0;
+  border-radius: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 22 22%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%276.5%27 fill=%27%23ffffff%27/%3E%3Cpath d=%27M12.5 3.2c4.6.4 7.4 3.8 7 8.2s-3.9 7.6-8.6 7.3S3 14.9 3.3 10.6 7.2 2.6 13.8 4.4%27 fill=%27none%27 stroke=%27%2326251f%27 stroke-width=%271.9%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") center / contain no-repeat;
+}
+[data-mode="dark"][data-style="sketch"] .react-flow__handle.handle-source { background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 22 22%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%276.5%27 fill=%27%232a2924%27/%3E%3Cpath d=%27M12.5 3.2c4.6.4 7.4 3.8 7 8.2s-3.9 7.6-8.6 7.3S3 14.9 3.3 10.6 7.2 2.6 13.8 4.4%27 fill=%27none%27 stroke=%27%23f2efe6%27 stroke-width=%271.9%27 stroke-linecap=%27round%27/%3E%3C/svg%3E"); }
+
+/* Zielkarte beim Verbinden: nur die Karte unter dem Zeiger bekommt einen Rötel-Schimmer, kein Rahmen */
+[data-style="sketch"] .card.is-connect-target { outline-color: transparent; }
+[data-style="sketch"] .card[data-type="notiz"].is-connect-target { outline: 1.5px dashed var(--muted); outline-offset: 0; }
+[data-style="sketch"] .card.is-connect-hover,
+[data-style="sketch"] .card[data-type="notiz"].is-connect-hover {
+  box-shadow: var(--shadow), 0 0 0 7px rgba(194, 85, 45, 0.22), 0 0 18px 6px rgba(194, 85, 45, 0.19);
+}
+[data-mode="dark"][data-style="sketch"] .card.is-connect-hover {
+  box-shadow: 0 0 0 7px rgba(232, 128, 88, 0.3), 0 0 18px 6px rgba(232, 128, 88, 0.24);
+}
+
+/* ------------------------------------------------------------------ Studio: ruhige Auswahl */
+
+/* Beim Schreiben keine Linie – der Cursor zeigt, wo man ist. */
+[data-style="studio"] .card-title:focus,
+[data-style="studio"] .card-text:focus { box-shadow: none; }
+
+/* Ausgewählte Karte: ein weicher, heller Ring statt eines harten Rahmens */
+[data-style="studio"] .card.is-selected {
+  outline-color: transparent;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), var(--shadow);
+}
+
+/* Tastatur-Fokus auf der Karte (z. B. nach Esc): feiner fester Rand plus weicher Ring statt hartem Rahmen */
+[data-style="studio"] .react-flow__node-card:focus-visible .card {
+  outline-color: transparent;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--accent) 16%, transparent),
+    var(--shadow);
+}
+
+/* Beim Verbinden: mögliche Ziele tragen denselben weichen Ring wie die Startkarte, nur dichter;
+   die Karte unter dem Zeiger noch etwas dichter. */
+[data-style="studio"] .card.is-connect-target {
+  outline-color: transparent;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 42%, transparent), var(--shadow);
+}
+[data-style="studio"] .card.is-connect-hover {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 68%, transparent), var(--shadow);
+}
+
+/* Verbindungspunkt: ein kleiner gefüllter Punkt, der beim Darüberfahren zum Plus wird.
+   Die Trefferfläche bleibt 22 px groß, gezeichnet wird nur der Punkt in der Mitte. */
+[data-style="studio"] .react-flow__handle.handle-source {
+  width: 22px;
+  height: 22px;
+  right: -11px;
+  border: 0;
+  background: transparent;
+}
+[data-style="studio"] .react-flow__handle.handle-source::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent) center / 0 no-repeat;
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, -50%);
+  transition: width 120ms ease, height 120ms ease, background-size 120ms ease, box-shadow 120ms ease;
+  pointer-events: none;
+}
+[data-style="studio"] .react-flow__handle.handle-source:hover::before,
+[data-style="studio"] .react-flow__handle.handle-source.connectingfrom::before {
+  width: 22px;
+  height: 22px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 6v12M6 12h12%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.6%27 stroke-linecap=%27round%27/%3E%3C/svg%3E");
+  background-size: 12px;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Breiten-Griff erst zeigen, wenn die Maus in die Ecke kommt */
+[data-style="studio"] .card-resize span { opacity: 0; transition: opacity 120ms ease; }
+[data-style="studio"] .react-flow__resize-control.card-resize:hover span,
+[data-style="studio"] .react-flow__resize-control.card-resize:active span { opacity: 1; }
+
+/* ------------------------------------------------------------------ Mauszeiger */
+
+/* Eigene Zeiger je Stil: eine Pfeilspitze in der Akzentfarbe in Studio, eine Kompassnadel im Skizzenbuch.
+   Dazu je ein passender Textcursor und ein Plus zum Verbinden. Ziehen und Breite ändern behalten ihre Systemzeiger. */
+:root[data-style="studio"][data-mode="light"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M5 3v18l5.2-4.8h8z%27 fill=%27%233d6fd9%27 stroke=%27%23ffffff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 3, default; --cursor-text: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M13.2 8c1.4 0 2.2.4 2.8 1.1.6-.7 1.4-1.1 2.8-1.1M16 9.1v13.8M13.2 24c1.4 0 2.2-.4 2.8-1.1.6.7 1.4 1.1 2.8 1.1%27 fill=%27none%27 stroke=%27%23ffffff%27 stroke-width=%274%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M13.2 8c1.4 0 2.2.4 2.8 1.1.6-.7 1.4-1.1 2.8-1.1M16 9.1v13.8M13.2 24c1.4 0 2.2-.4 2.8-1.1.6.7 1.4 1.1 2.8 1.1%27 fill=%27none%27 stroke=%27%233d6fd9%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 16 16, text; --cursor-connect: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 10v12M10 16h12%27 fill=%27none%27 stroke=%27%23ffffff%27 stroke-width=%274%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M16 10v12M10 16h12%27 fill=%27none%27 stroke=%27%233d6fd9%27 stroke-width=%271.9%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") 16 16, crosshair; }
+:root[data-style="studio"][data-mode="dark"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M5 3v18l5.2-4.8h8z%27 fill=%27%23b3a8ff%27 stroke=%27%231c1b18%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 3, default; --cursor-text: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M13.2 8c1.4 0 2.2.4 2.8 1.1.6-.7 1.4-1.1 2.8-1.1M16 9.1v13.8M13.2 24c1.4 0 2.2-.4 2.8-1.1.6.7 1.4 1.1 2.8 1.1%27 fill=%27none%27 stroke=%27%231c1b18%27 stroke-width=%274%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M13.2 8c1.4 0 2.2.4 2.8 1.1.6-.7 1.4-1.1 2.8-1.1M16 9.1v13.8M13.2 24c1.4 0 2.2-.4 2.8-1.1.6.7 1.4 1.1 2.8 1.1%27 fill=%27none%27 stroke=%27%23b3a8ff%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 16 16, text; --cursor-connect: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 10v12M10 16h12%27 fill=%27none%27 stroke=%27%231c1b18%27 stroke-width=%274%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M16 10v12M10 16h12%27 fill=%27none%27 stroke=%27%23b3a8ff%27 stroke-width=%271.9%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") 16 16, crosshair; }
+:root[data-style="sketch"][data-mode="light"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M5 5l17 7-6.5 3.5L12 22z%27 fill=%27%2326251f%27 stroke=%27%23ffffff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M5 5l10.5 4.3-4.2 2-2 4.2z%27 fill=%27%23e0643b%27/%3E%3C/svg%3E") 5 5, default; --cursor-text: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16.2 7.5c-.5 5.5.4 11.5-.2 17 M12.5 6.2l7 -.4M12.5 26.2l7 -.3%27 fill=%27none%27 stroke=%27%23ffffff%27 stroke-width=%274.4%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M16.2 7.5c-.5 5.5.4 11.5-.2 17%27 fill=%27none%27 stroke=%27%2326251f%27 stroke-width=%272.1%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M12.5 6.2l7 -.4M12.5 26.2l7 -.3%27 fill=%27none%27 stroke=%27%23e0643b%27 stroke-width=%272.3%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") 16 16, text; --cursor-connect: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16.3 8.6c-.4 5 .3 10-.2 14.8M8.6 16.2c5-.4 10 .3 14.8-.1%27 fill=%27none%27 stroke=%27%23ffffff%27 stroke-width=%274.4%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M16.3 8.6c-.4 5 .3 10-.2 14.8M8.6 16.2c5-.4 10 .3 14.8-.1%27 fill=%27none%27 stroke=%27%2326251f%27 stroke-width=%272.1%27 stroke-linecap=%27round%27/%3E%3Ccircle cx=%2716.1%27 cy=%2716.1%27 r=%272.2%27 fill=%27%23e0643b%27 stroke=%27%23ffffff%27 stroke-width=%271.2%27/%3E%3C/svg%3E") 16 16, crosshair; }
+:root[data-style="sketch"][data-mode="dark"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M5 5l17 7-6.5 3.5L12 22z%27 fill=%27%23f2efe6%27 stroke=%27%231c1b18%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M5 5l10.5 4.3-4.2 2-2 4.2z%27 fill=%27%23ff8a65%27/%3E%3C/svg%3E") 5 5, default; --cursor-text: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16.2 7.5c-.5 5.5.4 11.5-.2 17 M12.5 6.2l7 -.4M12.5 26.2l7 -.3%27 fill=%27none%27 stroke=%27%231c1b18%27 stroke-width=%274.4%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M16.2 7.5c-.5 5.5.4 11.5-.2 17%27 fill=%27none%27 stroke=%27%23f2efe6%27 stroke-width=%272.1%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M12.5 6.2l7 -.4M12.5 26.2l7 -.3%27 fill=%27none%27 stroke=%27%23ff8a65%27 stroke-width=%272.3%27 stroke-linecap=%27round%27/%3E%3C/svg%3E") 16 16, text; --cursor-connect: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16.3 8.6c-.4 5 .3 10-.2 14.8M8.6 16.2c5-.4 10 .3 14.8-.1%27 fill=%27none%27 stroke=%27%231c1b18%27 stroke-width=%274.4%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M16.3 8.6c-.4 5 .3 10-.2 14.8M8.6 16.2c5-.4 10 .3 14.8-.1%27 fill=%27none%27 stroke=%27%23f2efe6%27 stroke-width=%272.1%27 stroke-linecap=%27round%27/%3E%3Ccircle cx=%2716.1%27 cy=%2716.1%27 r=%272.2%27 fill=%27%23ff8a65%27 stroke=%27%231c1b18%27 stroke-width=%271.2%27/%3E%3C/svg%3E") 16 16, crosshair; }
+
+body,
+.react-flow__pane,
+.react-flow__pane.draggable,
+.react-flow__pane.selection,
+.react-flow__node,
+.react-flow__node.selectable,
+.react-flow__node.draggable,
+button,
+.card,
+.card-type,
+.style-tile,
+.mode-tile,
+.dock-btn,
+.island-btn,
+.zoom-btn,
+.card-menu-item { cursor: var(--cursor, default); }
+button:disabled { cursor: var(--cursor, default); }
+input,
+textarea { cursor: var(--cursor-text, text); }
+.react-flow__pane.dragging,
+.react-flow__node.dragging,
+.react-flow__node.dragging .card { cursor: grabbing; }
+.react-flow__handle.handle-source,
+.react-flow.is-connecting,
+.react-flow.is-connecting * { cursor: var(--cursor-connect, crosshair); }
+.react-flow__resize-control.card-resize { cursor: ew-resize; }
