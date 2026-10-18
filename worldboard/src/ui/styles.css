@@ -606,3 +606,36 @@ button svg { flex-shrink: 0; }
 }
 /* Im Skizzenbuch ist die Notiz-Farbe weiß – ein feiner Rand hält den Punkt sichtbar. */
 [data-style="sketch"] [data-type="notiz"] > .type-chip { box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+/* ------------------------------------------------------------------ Mauszeiger */
+
+/* Eigene Zeiger je Stil: ein feiner Pfeil in Studio, ein Bleistift im Skizzenbuch.
+   Textfelder, Ziehen, Verbinden und Breite ändern behalten ihre sprechenden Systemzeiger. */
+:root[data-style="studio"][data-mode="light"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M5 3v20.5l5.3-5 3.7 8.6 3.4-1.5-3.7-8.5h7.3z%27 fill=%27%231e1e1c%27 stroke=%27%23ffffff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 3, default; }
+:root[data-style="studio"][data-mode="dark"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M5 3v20.5l5.3-5 3.7 8.6 3.4-1.5-3.7-8.5h7.3z%27 fill=%27%23f2efe6%27 stroke=%27%231c1b18%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 3, default; }
+:root[data-style="sketch"][data-mode="light"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cg stroke-linejoin=%27round%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M7 22.5 22.5 7l4 4L11 26.5z%27 fill=%27%23fff0c2%27 stroke=%27%23ffffff%27 stroke-width=%273.2%27/%3E%3Cpath d=%27M7 22.5 3.5 28.5 11 26.5z%27 fill=%27%23fff0c2%27 stroke=%27%23ffffff%27 stroke-width=%273.2%27/%3E%3Cpath d=%27M7 22.5 22.5 7l4 4L11 26.5z%27 fill=%27%23fff0c2%27 stroke=%27%2326251f%27 stroke-width=%271.5%27/%3E%3Cpath d=%27M22.5 7l2.2-2.2a1.4 1.4 0 0 1 2 0l2 2a1.4 1.4 0 0 1 0 2L26.5 11z%27 fill=%27%23ffc4ae%27 stroke=%27%2326251f%27 stroke-width=%271.5%27/%3E%3Cpath d=%27M7 22.5 3.5 28.5 11 26.5z%27 fill=%27%23fff0c2%27 stroke=%27%2326251f%27 stroke-width=%271.5%27/%3E%3Cpath d=%27M4.6 26.6 3.5 28.5l1.9-.5z%27 fill=%27%2326251f%27 stroke=%27%2326251f%27 stroke-width=%271.2%27/%3E%3Cpath d=%27M9 24.5 24.5 9%27 stroke=%27%2326251f%27 stroke-width=%271%27 opacity=%27.45%27/%3E%3C/g%3E%3C/svg%3E") 4 28, default; }
+:root[data-style="sketch"][data-mode="dark"] { --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27 viewBox=%270 0 32 32%27%3E%3Cg stroke-linejoin=%27round%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M7 22.5 22.5 7l4 4L11 26.5z%27 fill=%27%2346391a%27 stroke=%27%231c1b18%27 stroke-width=%273.2%27/%3E%3Cpath d=%27M7 22.5 3.5 28.5 11 26.5z%27 fill=%27%2346391a%27 stroke=%27%231c1b18%27 stroke-width=%273.2%27/%3E%3Cpath d=%27M7 22.5 22.5 7l4 4L11 26.5z%27 fill=%27%2346391a%27 stroke=%27%23f2efe6%27 stroke-width=%271.5%27/%3E%3Cpath d=%27M22.5 7l2.2-2.2a1.4 1.4 0 0 1 2 0l2 2a1.4 1.4 0 0 1 0 2L26.5 11z%27 fill=%27%23ffc4ae%27 stroke=%27%23f2efe6%27 stroke-width=%271.5%27/%3E%3Cpath d=%27M7 22.5 3.5 28.5 11 26.5z%27 fill=%27%2346391a%27 stroke=%27%23f2efe6%27 stroke-width=%271.5%27/%3E%3Cpath d=%27M4.6 26.6 3.5 28.5l1.9-.5z%27 fill=%27%23f2efe6%27 stroke=%27%23f2efe6%27 stroke-width=%271.2%27/%3E%3Cpath d=%27M9 24.5 24.5 9%27 stroke=%27%23f2efe6%27 stroke-width=%271%27 opacity=%27.45%27/%3E%3C/g%3E%3C/svg%3E") 4 28, default; }
+
+body,
+.react-flow__pane,
+.react-flow__pane.draggable,
+.react-flow__pane.selection,
+.react-flow__node,
+.react-flow__node.selectable,
+.react-flow__node.draggable,
+button,
+.card,
+.card-type,
+.style-tile,
+.mode-tile,
+.dock-btn,
+.island-btn,
+.card-menu-item { cursor: var(--cursor, default); }
+button:disabled { cursor: var(--cursor, default); }
+input,
+textarea { cursor: text; }
+.react-flow__pane.dragging,
+.react-flow__node.dragging,
+.react-flow__node.dragging .card { cursor: grabbing; }
+.react-flow__handle.handle-source { cursor: crosshair; }
+.react-flow__resize-control.card-resize { cursor: ew-resize; }

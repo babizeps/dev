@@ -213,3 +213,29 @@ test("Auto-Modus folgt dem System", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(html).toHaveAttribute("data-mode", "dark");
 });
+
+test("Eigene Mauszeiger je Stil, Textfelder behalten den Textcursor", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".react-flow__pane").dblclick({ position: { x: 400, y: 300 } });
+  const card = page.getByTestId("card");
+  await expect(card).toHaveCount(1);
+  await waitSaved(page);
+  const cursorOf = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).cursor);
+
+  for (const style of ["studio", "sketch"]) {
+    await page.evaluate((s) => localStorage.setItem("worldboard.style", s), style);
+    await page.reload();
+    const pane = await cursorOf(".react-flow__pane");
+    expect(pane, style).toContain("data:image/svg+xml");
+    expect(await cursorOf(".react-flow__node"), style).toBe(pane);
+    expect(await cursorOf(".card-type"), style).toBe(pane);
+    expect(await cursorOf(".card-title"), style).toBe("text");
+  }
+  // Studio und Skizzenbuch haben unterschiedliche Zeiger
+  await page.evaluate(() => localStorage.setItem("worldboard.style", "studio"));
+  await page.reload();
+  const studio = await cursorOf(".react-flow__pane");
+  await page.evaluate(() => localStorage.setItem("worldboard.style", "sketch"));
+  await page.reload();
+  expect(await cursorOf(".react-flow__pane")).not.toBe(studio);
+});
