@@ -1,49 +1,40 @@
-# archive-digest
+# archive-digest – Skill für Claude
 
-Ruft Artikel über **archive.ph** (archive.today) ab und lässt Claude einen kompakten Überblick erstellen: TL;DR, Kernaussagen, Fakten & Zahlen und eine kurze Einordnung.
+Ein Skill für die normale Claude-App (claude.ai, Desktop-App, Smartphone-App). Du schickst Claude im Chat einen archive.ph-Link, und Claude ruft den Artikel ab und gibt dir einen Überblick: TL;DR, Kernaussagen, Fakten & Zahlen und eine kurze Einordnung.
 
-## Installation
+## Einrichten (einmalig)
 
-```bash
-cd archive-digest
-pip install -r requirements.txt
-pip install -e .
-export ANTHROPIC_API_KEY=sk-ant-...
+1. `archive-digest-skill.zip` herunterladen.
+2. In Claude: **Einstellungen → Funktionen (Capabilities)**: **Code-Ausführung und Dateierstellung** einschalten (Skills brauchen das).
+3. Unter **Skills** auf **Skill hochladen** klicken und die ZIP-Datei auswählen.
+4. Prüfen, dass die **Websuche bzw. der Web-Abruf** aktiviert ist (im Chat über das Werkzeug-Menü).
+
+## Benutzen
+
+Einfach im Chat schreiben, zum Beispiel:
+
+- `Fass mir den Artikel zusammen: https://archive.ph/AbCd1`
+- `https://www.zeitung.de/artikel.html über archive.ph, bitte kurz`: nimmt den neuesten Snapshot
+- `Überblick auf Englisch: https://archive.ph/AbCd1`
+- mehrere Links auf einmal: Claude fasst jeden Artikel zusammen und vergleicht sie danach
+
+## Wenn archive.ph blockiert
+
+archive.ph zeigt automatischen Abrufen manchmal ein CAPTCHA. Claude sagt dir dann Bescheid. Zwei Auswege:
+
+- Den Link im Browser öffnen, die Seite speichern (Strg+S, „Webseite, nur HTML“) und die Datei in den Chat ziehen. Claude holt den Text mit dem beiliegenden Skript heraus.
+- Den Artikeltext einfach in den Chat kopieren.
+
+## Inhalt
+
+```
+skill/archive-digest/
+├── SKILL.md                    Anleitung für Claude (Abruf, Format des Überblicks)
+└── scripts/extract_article.py  holt den Text aus einer gespeicherten archive.ph-Seite
 ```
 
-## Verwendung
+Nach Änderungen die ZIP-Datei neu bauen:
 
 ```bash
-# archive.ph-Link direkt
-archive-digest https://archive.ph/AbCd1
-
-# Original-URL -> neuester Snapshot auf archive.ph
-archive-digest https://www.example.com/artikel.html
-
-# Kurzfassung (TL;DR + max. 5 Stichpunkte)
-archive-digest -k https://archive.ph/AbCd1
-
-# Überblick auf Englisch
-archive-digest -l Englisch https://archive.ph/AbCd1
-
-# Nur den extrahierten Artikeltext anzeigen (ohne Claude)
-archive-digest --text https://archive.ph/AbCd1
-
-# Lokal gespeicherte Seite verwenden (z.B. wenn archive.ph ein CAPTCHA zeigt)
-archive-digest --html gespeichert.html
-```
-
-Weitere Optionen: `--model`, `--effort low|medium|high|xhigh|max`, `--mirror https://archive.is`.
-
-## Hinweise
-
-- archive.ph zeigt automatisierten Anfragen manchmal ein CAPTCHA. Dann öffnest du den Link im Browser, speicherst die Seite (Strg+S, „nur HTML“) und übergibst sie mit `--html`.
-- Gibt es noch keinen Snapshot, meldet das Tool einen Link zum Archivieren.
-- Standardmodell ist `claude-opus-5-5`. Lehnt das Modell eine Anfrage ab, springt die serverseitige Fallback-Funktion (`fallbacks: "default"`) automatisch ein.
-
-## Tests
-
-```bash
-pip install pytest
-python -m pytest tests
+cd skill && zip -r ../archive-digest-skill.zip archive-digest -x '*__pycache__*'
 ```
