@@ -1,42 +1,43 @@
 # archive-digest – Skill für Claude
 
-Ein Skill für die normale Claude-App (claude.ai, Desktop-App, Smartphone-App). Du schickst Claude im Chat einen Artikel-Link und bekommst einen Überblick: TL;DR, Kernaussagen, Fakten & Zahlen und eine kurze Einordnung.
+Ein Skill für die Claude-App (claude.ai, Desktop, Smartphone). Du schickst Claude eine Artikel-URL und bekommst den passenden **archive.ph-Link** zurück. Claude ruft dabei keine Seite ab, es baut nur die Links zusammen.
 
-archive.ph kommt **nur zum Einsatz, wenn der Artikel hinter einer Paywall steht**. Claude ruft zuerst das Original ab. Ist es frei lesbar, fasst Claude es direkt zusammen. Bricht der Text nach dem Anriss ab oder erscheinen Abo-Hinweise („SPIEGEL+“, „Z+“, „Subscribe to continue“ usw.), holt Claude den archivierten Volltext von archive.ph. Nennst du archive.ph selbst oder schickst einen archive.ph-Link, wird archive.ph immer verwendet.
+Beispiel:
+
+```
+archive: https://www.example.com/politik/artikel-123.html?utm_source=newsletter
+```
+
+Antwort:
+
+```
+Neuester Snapshot: https://archive.ph/newest/https://www.example.com/politik/artikel-123.html
+Alle Snapshots: https://archive.ph/https://www.example.com/politik/artikel-123.html
+Noch nicht archiviert? Jetzt archivieren: https://archive.ph/?url=https://www.example.com/politik/artikel-123.html
+```
+
+Tracking-Parameter wie `utm_source` entfernt Claude dabei automatisch.
 
 ## Einrichten (einmalig)
 
 1. `archive-digest-skill.zip` herunterladen.
-2. In Claude: **Einstellungen → Funktionen (Capabilities)**: **Code-Ausführung und Dateierstellung** einschalten (Skills brauchen das).
-3. Unter **Skills** auf **Skill hochladen** klicken und die ZIP-Datei auswählen.
-4. Prüfen, dass die **Websuche bzw. der Web-Abruf** aktiviert ist (im Chat über das Werkzeug-Menü).
+2. In der Claude-App: **Einstellungen → Anpassungen → Skills**, dann **„+“ → „Skill erstellen“ → „Skill hochladen“** und die ZIP-Datei wählen.
+3. Prüfen, dass der Schalter neben „archive-digest“ eingeschaltet ist.
 
-## Benutzen
+Websuche und Code-Ausführung braucht dieser Skill nicht.
 
-Einfach im Chat schreiben, zum Beispiel:
+## Ohne Claude: Lesezeichen (Bookmarklet)
 
-- `Fass mir den Artikel zusammen: https://www.zeitung.de/artikel.html`: Paywall-Prüfung, bei Bedarf archive.ph
-- `Bitte kurz: https://www.zeitung.de/artikel.html`
-- `Überblick auf Englisch: https://archive.ph/AbCd1`: archive.ph-Link, wird direkt verwendet
-- mehrere Links auf einmal: jeder wird einzeln geprüft, danach vergleicht Claude die Artikel
-
-## Wenn archive.ph blockiert
-
-archive.ph zeigt automatischen Abrufen manchmal ein CAPTCHA. Claude sagt dir dann Bescheid. Zwei Auswege:
-
-- Den Link im Browser öffnen, die Seite speichern (Strg+S, „Webseite, nur HTML“) und die Datei in den Chat ziehen. Claude holt den Text mit dem beiliegenden Skript heraus.
-- Den Artikeltext einfach in den Chat kopieren.
-
-## Inhalt
+Noch schneller geht es mit einem Lesezeichen im Browser. Leg ein neues Lesezeichen an und trag als Adresse ein:
 
 ```
-skill/archive-digest/
-├── SKILL.md                    Anleitung für Claude (Paywall-Prüfung, Abruf, Format)
-└── scripts/extract_article.py  holt den Text aus einer gespeicherten archive.ph-Seite
+javascript:location.href='https://archive.ph/newest/'+location.href.split('#')[0]
 ```
 
-Nach Änderungen die ZIP-Datei neu bauen:
+Auf einer Artikelseite klickst du das Lesezeichen an und landest direkt beim neuesten archive.ph-Snapshot.
+
+## ZIP neu bauen
 
 ```bash
-cd skill && zip -r ../archive-digest-skill.zip archive-digest -x '*__pycache__*'
+cd skill && zip -r ../archive-digest-skill.zip archive-digest
 ```
