@@ -1,6 +1,8 @@
 # archive-digest – Skill für Claude
 
-Ein Skill für die normale Claude-App (claude.ai, Desktop-App, Smartphone-App). Du schickst Claude im Chat einen archive.ph-Link, und Claude ruft den Artikel ab und gibt dir einen Überblick: TL;DR, Kernaussagen, Fakten & Zahlen und eine kurze Einordnung.
+Ein Skill für die normale Claude-App (claude.ai, Desktop-App, Smartphone-App). Du schickst Claude im Chat einen Artikel-Link und bekommst einen Überblick: TL;DR, Kernaussagen, Fakten & Zahlen und eine kurze Einordnung.
+
+archive.ph kommt **nur zum Einsatz, wenn der Artikel hinter einer Paywall steht**. Claude ruft zuerst das Original ab. Ist es frei lesbar, fasst Claude es direkt zusammen. Bricht der Text nach dem Anriss ab oder erscheinen Abo-Hinweise („SPIEGEL+“, „Z+“, „Subscribe to continue“ usw.), holt Claude den archivierten Volltext von archive.ph. Nennst du archive.ph selbst oder schickst einen archive.ph-Link, wird archive.ph immer verwendet.
 
 ## Einrichten (einmalig)
 
@@ -13,10 +15,10 @@ Ein Skill für die normale Claude-App (claude.ai, Desktop-App, Smartphone-App). 
 
 Einfach im Chat schreiben, zum Beispiel:
 
-- `Fass mir den Artikel zusammen: https://archive.ph/AbCd1`
-- `https://www.zeitung.de/artikel.html über archive.ph, bitte kurz`: nimmt den neuesten Snapshot
-- `Überblick auf Englisch: https://archive.ph/AbCd1`
-- mehrere Links auf einmal: Claude fasst jeden Artikel zusammen und vergleicht sie danach
+- `Fass mir den Artikel zusammen: https://www.zeitung.de/artikel.html`: Paywall-Prüfung, bei Bedarf archive.ph
+- `Bitte kurz: https://www.zeitung.de/artikel.html`
+- `Überblick auf Englisch: https://archive.ph/AbCd1`: archive.ph-Link, wird direkt verwendet
+- mehrere Links auf einmal: jeder wird einzeln geprüft, danach vergleicht Claude die Artikel
 
 ## Wenn archive.ph blockiert
 
@@ -29,7 +31,7 @@ archive.ph zeigt automatischen Abrufen manchmal ein CAPTCHA. Claude sagt dir dan
 
 ```
 skill/archive-digest/
-├── SKILL.md                    Anleitung für Claude (Abruf, Format des Überblicks)
+├── SKILL.md                    Anleitung für Claude (Paywall-Prüfung, Abruf, Format)
 └── scripts/extract_article.py  holt den Text aus einer gespeicherten archive.ph-Seite
 ```
 
