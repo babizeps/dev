@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """safari-tabs – räumt Safari-Tabs auf.
 
-Liest alle offenen Safari-Tabs, sortiert unnötige aus (Duplikate, leere Tabs,
-Suchergebnisse, Login-Seiten, Fehlerseiten, bereits gespeicherte Seiten …),
-schließt sie und legt die wichtigen geordnet nach Kategorien als Lesezeichen ab.
+1. Überblick: zeigt alle offenen Safari-Tabs und empfiehlt, welche geschlossen
+   werden können (Duplikate, leere Tabs, Suchergebnisse, Login-/Fehlerseiten,
+   bereits gespeicherte Seiten …).
+2. Schließt die empfohlenen Tabs (nach Bestätigung).
+3. Sortiert die übrigen Tabs in deine *vorhandenen* Lesezeichen-Ordner ein –
+   passend nach Domain, Stichworten im Ordnernamen und Thema.
 
 Nur Python-Standardbibliothek, läuft mit dem macOS-eigenen python3 (>= 3.8).
 """
@@ -40,7 +43,11 @@ ACTION_KEY = {"s": CLOSE, "l": BOOKMARK, "b": KEEP}
 # Standard-Konfiguration (kann per --config JSON-Datei überschrieben werden)
 # --------------------------------------------------------------------------
 DEFAULT_CONFIG: Dict = {
-    "folder": "Tab-Archiv",
+    # Ordner für Tabs, die zu keinem vorhandenen Ordner passen
+    # (wird nur angelegt, wenn nötig)
+    "fallback_folder": "Unsortiert",
+    # Mindestpunktzahl, damit ein Tab einem vorhandenen Ordner zugeordnet wird
+    "min_match_score": 3,
     "close_already_bookmarked": True,
     "close_search_results": True,
     "close_auth_pages": True,
@@ -134,6 +141,33 @@ DEFAULT_CONFIG: Dict = {
     },
 }
 
+# Ordnernamen-Stichworte, die zu einem Thema passen (für die Zuordnung zu
+# vorhandenen Lesezeichen-Ordnern)
+CATEGORY_SYNONYMS: Dict[str, List[str]] = {
+    "Entwicklung": ["dev", "development", "entwicklung", "programmieren",
+                    "programming", "code", "coding", "software", "tech",
+                    "technik", "python", "javascript", "web", "informatik",
+                    "github", "docs", "doku", "dokumentation", "ki", "ai"],
+    "Videos": ["video", "videos", "youtube", "film", "filme", "serien",
+               "streaming", "anschauen", "watch", "musik", "music", "mediathek"],
+    "Nachrichten": ["news", "nachrichten", "artikel", "presse", "zeitung",
+                    "lesen", "read", "später", "later", "aktuell"],
+    "Social": ["social", "soziale", "netzwerke", "community", "reddit"],
+    "Shopping": ["shopping", "einkaufen", "kaufen", "wunschliste", "wishlist",
+                 "shop", "produkte", "geschenke", "geschenkideen"],
+    "Wissen & Lernen": ["wissen", "lernen", "learning", "bildung", "studium",
+                        "uni", "schule", "wiki", "recherche", "research",
+                        "kurse", "sprachen"],
+    "Arbeit & Dokumente": ["arbeit", "work", "job", "büro", "buero", "projekte",
+                           "projekt", "dokumente", "tools", "firma", "office"],
+    "Reisen & Orte": ["reisen", "reise", "travel", "urlaub", "orte", "karten",
+                      "ausflug", "ausflüge", "hotels"],
+    "Rezepte": ["rezepte", "rezept", "kochen", "essen", "food", "backen",
+                "recipes", "küche", "kueche"],
+    "Finanzen": ["finanzen", "finance", "geld", "banking", "bank", "aktien",
+                 "investieren", "steuern", "versicherung"],
+}
+
 SEARCH_ENGINES: List[Tuple[str, str, Optional[str]]] = [
     # (Host-Regex, Pfad-Präfix, Pflicht-Query-Parameter)
     (r"(^|\.)google\.[a-z.]+$", "/search", None),
@@ -189,6 +223,11 @@ class Tab:
     reason: str = ""
     category: str = ""
     num: int = 0         # laufende Nummer in der Anzeige
+    # Ziel-Lesezeichenordner
+    target_key: str = ""     # UUID oder Pfad des Ordners
+    target_path: str = ""    # Anzeige, z. B. "Favoriten/Dev"
+    target_new: bool = False  # Ordner existiert noch nicht
+    target_why: str = ""
 
     @property
     def host(self) -> str:
@@ -322,8 +361,10 @@ def categorize(tab: Tab, categories: Dict[str, List[str]]) -> str:
 # --------------------------------------------------------------------------
 # Analyse
 # --------------------------------------------------------------------------
-def analyze(tabs: List[Tab], cfg: Dict, bookmarked: Optional[set] = None) -> Plan:
-    bookmarked = bookmarked or set()
+def analyze(tabs: List[Tab], cfg: Dict,
+            bookmarked: Optional[Dict[str, str]] = None) -> Plan:
+    """bookmarked: normalisierte URL → Ordnerpfad, in dem sie schon liegt."""
+    bookmarked = bookmarked or {}
     tracking = cfg["tracking_params"]
     keep_open = [re.compile(p, re.I) for p in cfg["keep_open_patterns"]]
     force_close = [re.compile(p, re.I) for p in cfg["close_patterns"]]
@@ -354,7 +395,9 @@ def analyze(tabs: List[Tab], cfg: Dict, bookmarked: Optional[set] = None) -> Pla
         elif cfg["close_auth_pages"] and is_auth(tab.url):
             decide(CLOSE, "Login-/Anmeldeseite")
         elif cfg["close_already_bookmarked"] and key in bookmarked:
-            decide(CLOSE, "schon als Lesezeichen gespeichert")
+            where = bookmarked[key]
+            decide(CLOSE, f"schon gespeichert in {where}" if where
+                   else "schon als Lesezeichen gespeichert")
         elif tab.url.lower().startswith(("http://", "https://", "file://")):
             decide(BOOKMARK, "")
         else:
@@ -468,28 +511,193 @@ def close_tabs(tabs: List[Tab]) -> Dict:
 
 
 # --------------------------------------------------------------------------
-# Lesezeichen lesen / schreiben
+# Vorhandene Lesezeichen-Ordner
 # --------------------------------------------------------------------------
+SPECIAL_TITLES = {"BookmarksBar": "Favoriten", "BookmarksMenu": "Lesezeichenmenü"}
+SKIP_TITLES = {"com.apple.ReadingList"}
+STOPWORDS = {"und", "the", "and", "für", "fuer", "von", "der", "die", "das",
+             "mit", "neu", "new", "alt", "old", "misc", "sonstiges", "diverses",
+             "allgemein", "www", "com", "http", "https", "html", "php"}
+
+
+def _tokens(text: str) -> set:
+    return {w for w in re.findall(r"[a-zäöüß0-9]+", (text or "").lower())
+            if len(w) >= 2 and w not in STOPWORDS}
+
+
+def _bare_host(host: str) -> str:
+    host = (host or "").lower()
+    for pre in ("www.", "m.", "mobile."):
+        if host.startswith(pre):
+            return host[len(pre):]
+    return host
+
+
+def _domain(host: str) -> str:
+    """Grobe registrierbare Domain: news.bbc.co.uk → bbc.co.uk"""
+    parts = _bare_host(host).split(".")
+    if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in (
+            "co", "com", "org", "net", "gov", "ac", "or", "ne"):
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+@dataclass
+class Folder:
+    key: str               # WebBookmarkUUID (oder Pfad, falls keine UUID)
+    path: str              # "Favoriten/Dev/Python"
+    title: str
+    depth: int
+    hosts: Dict[str, int] = field(default_factory=dict)    # direkte Lesezeichen
+    domains: Dict[str, int] = field(default_factory=dict)
+    sub_domains: Dict[str, int] = field(default_factory=dict)  # in Unterordnern
+    leaves: int = 0
+    tokens: set = field(default_factory=set)
+    num: int = 0
+
+
+def _node_title(node: Dict) -> str:
+    t = node.get("Title", "")
+    return SPECIAL_TITLES.get(t, t)
+
+
+def collect_folders(root: Dict) -> List[Folder]:
+    folders: List[Folder] = []
+
+    def walk(node: Dict, prefix: str, depth: int) -> Dict[str, int]:
+        title = _node_title(node)
+        path = f"{prefix}/{title}" if prefix else title
+        f = Folder(key=node.get("WebBookmarkUUID") or path, path=path,
+                   title=title, depth=depth, tokens=_tokens(title))
+        folders.append(f)
+        below: Dict[str, int] = {}
+        for c in node.get("Children", []) or []:
+            typ = c.get("WebBookmarkType")
+            if typ == "WebBookmarkTypeLeaf":
+                h = _bare_host(urlsplit(c.get("URLString", "")).hostname or "")
+                if h:
+                    f.hosts[h] = f.hosts.get(h, 0) + 1
+                    d = _domain(h)
+                    f.domains[d] = f.domains.get(d, 0) + 1
+                    f.leaves += 1
+            elif typ == "WebBookmarkTypeList" and c.get("Title") not in SKIP_TITLES:
+                for d, n in walk(c, path, depth + 1).items():
+                    below[d] = below.get(d, 0) + n
+        f.sub_domains = below
+        total = dict(below)
+        for d, n in f.domains.items():
+            total[d] = total.get(d, 0) + n
+        return total
+
+    for c in root.get("Children", []) or []:
+        if c.get("WebBookmarkType") == "WebBookmarkTypeList" \
+                and c.get("Title") not in SKIP_TITLES:
+            walk(c, "", 0)
+    for i, f in enumerate(folders, 1):
+        f.num = i
+    return folders
+
+
+def bookmark_index(root: Optional[Dict], tracking: Iterable[str]) -> Dict[str, str]:
+    """normalisierte URL → Ordnerpfad"""
+    out: Dict[str, str] = {}
+    if not root:
+        return out
+
+    def walk(node: Dict, path: str) -> None:
+        for c in node.get("Children", []) or []:
+            typ = c.get("WebBookmarkType")
+            if typ == "WebBookmarkTypeLeaf" and c.get("URLString"):
+                out.setdefault(normalize_url(c["URLString"], tracking), path)
+            elif typ == "WebBookmarkTypeList" and c.get("Title") not in SKIP_TITLES:
+                t = _node_title(c)
+                walk(c, f"{path}/{t}" if path else t)
+
+    walk(root, "")
+    return out
+
+
 def iter_bookmark_urls(node: Dict) -> Iterable[str]:
     if node.get("WebBookmarkType") == "WebBookmarkTypeLeaf":
         url = node.get("URLString")
         if url:
             yield url
     for child in node.get("Children", []) or []:
+        if child.get("Title") in SKIP_TITLES:
+            continue
         yield from iter_bookmark_urls(child)
 
 
-def load_bookmarks(path: Path = BOOKMARKS_PLIST) -> Optional[Dict]:
+def score_folder(tab: Tab, f: Folder) -> Tuple[float, str]:
+    host = _bare_host(tab.host)
+    dom = _domain(host)
+    score, why = 0.0, ""
+    if host in f.hosts:
+        score = 10 + min(f.hosts[host], 10)
+        why = f"{f.hosts[host]}× {host} schon im Ordner"
+    elif dom in f.domains:
+        score = 7 + min(f.domains[dom], 10)
+        why = f"{f.domains[dom]}× {dom} schon im Ordner"
+    elif dom in f.sub_domains:
+        # Domain liegt in einem Unterordner – der Unterordner gewinnt dann
+        score = 2
+        why = f"{dom} in Unterordnern"
+    tab_tokens = _tokens(f"{tab.title} {host} {urlsplit(tab.url).path}")
+    hits = sorted(f.tokens & tab_tokens)
+    if hits:
+        score += 4 * len(hits)
+        why = why or f"Stichwort „{', '.join(hits)}“"
+    syn = set(CATEGORY_SYNONYMS.get(tab.category, []))
+    if tab.category and (f.tokens & syn or f.title.lower() == tab.category.lower()):
+        score += 3
+        why = why or f"passt zum Thema {tab.category}"
+    # Favoriten/Lesezeichenmenü selbst nur bei klaren Domain-Treffern
+    if f.depth == 0 and f.title in SPECIAL_TITLES.values() and score < 10:
+        score = 0
+    # spezifischere (tiefere) Ordner leicht bevorzugen
+    if score:
+        score += 0.1 * f.depth
+    return score, why
+
+
+def assign_folders(plan: Plan, folders: List[Folder], cfg: Dict) -> None:
+    threshold = cfg.get("min_match_score", 3)
+    for t in plan.by_action(BOOKMARK):
+        best, best_score, best_why = None, 0.0, ""
+        for f in folders:
+            s, why = score_folder(t, f)
+            if s > best_score or (s == best_score and best and f.leaves > best.leaves):
+                best, best_score, best_why = f, s, why
+        if best and best_score >= threshold:
+            t.target_key, t.target_path = best.key, best.path
+            t.target_new, t.target_why = False, best_why
+        else:
+            set_new_target(t, cfg["fallback_folder"], "kein passender Ordner")
+
+
+def set_new_target(t: Tab, name: str, why: str = "") -> None:
+    t.target_key = "new:" + name
+    t.target_path = name
+    t.target_new = True
+    t.target_why = why
+
+
+# --------------------------------------------------------------------------
+# Lesezeichen schreiben
+# --------------------------------------------------------------------------
+def load_bookmarks(path: Path = BOOKMARKS_PLIST, quiet: bool = False) -> Optional[Dict]:
     try:
         with open(path, "rb") as fh:
             return plistlib.load(fh)
     except FileNotFoundError:
         return None
     except PermissionError:
-        print("⚠️  Kein Lesezugriff auf Safari-Lesezeichen (Bookmarks.plist).\n"
-              "   Für die Erkennung bereits gespeicherter Seiten und --direct:\n"
-              "   Systemeinstellungen → Datenschutz & Sicherheit → "
-              "Festplattenvollzugriff → Terminal aktivieren.\n", file=sys.stderr)
+        if not quiet:
+            print("⚠️  Kein Zugriff auf deine Safari-Lesezeichen (Bookmarks.plist).\n"
+                  "   Ohne Zugriff kann ich deine Ordner nicht sehen. Bitte erlauben:\n"
+                  "   Systemeinstellungen → Datenschutz & Sicherheit → "
+                  "Festplattenvollzugriff → Terminal aktivieren, dann Terminal neu starten.\n",
+                  file=sys.stderr)
         return None
 
 
@@ -511,175 +719,191 @@ def _new_leaf(title: str, url: str) -> Dict:
     }
 
 
-def group_for_bookmarks(tabs: List[Tab], cfg: Dict) -> Dict[str, List[Tab]]:
-    order = list(cfg["categories"].keys()) + ["Sonstiges"]
-    groups: Dict[str, List[Tab]] = {}
-    for t in tabs:
-        groups.setdefault(t.category or "Sonstiges", []).append(t)
-    for items in groups.values():
-        items.sort(key=lambda t: (re.sub(r"^www\.", "", t.host), (t.title or "").lower()))
-    return {k: groups[k] for k in sorted(groups, key=lambda c: order.index(c)
-                                         if c in order else len(order))}
+def _index_nodes(root: Dict) -> Dict[str, Dict]:
+    idx: Dict[str, Dict] = {}
+
+    def walk(node: Dict, prefix: str) -> None:
+        for c in node.get("Children", []) or []:
+            if c.get("WebBookmarkType") != "WebBookmarkTypeList" \
+                    or c.get("Title") in SKIP_TITLES:
+                continue
+            t = _node_title(c)
+            path = f"{prefix}/{t}" if prefix else t
+            if c.get("WebBookmarkUUID"):
+                idx[c["WebBookmarkUUID"]] = c
+            idx.setdefault(path, c)
+            walk(c, path)
+
+    walk(root, "")
+    return idx
 
 
-def add_to_bookmark_tree(root: Dict, tabs: List[Tab], cfg: Dict) -> int:
-    """Fügt Tabs unter <folder>/<Kategorie> ein. Gibt Anzahl neuer Einträge zurück."""
+def add_to_existing_folders(root: Dict, tabs: List[Tab], cfg: Dict) -> Dict[str, int]:
+    """Fügt Tabs in ihre Zielordner ein. Gibt {Ordnerpfad: Anzahl} zurück."""
     tracking = cfg["tracking_params"]
     existing = {normalize_url(u, tracking) for u in iter_bookmark_urls(root)}
+    idx = _index_nodes(root)
     children = root.setdefault("Children", [])
-    top = next((c for c in children if c.get("WebBookmarkType") == "WebBookmarkTypeList"
-                and c.get("Title") == cfg["folder"]), None)
-    if top is None:
-        top = _new_folder(cfg["folder"])
-        # hinter Favoriten/Lesezeichenmenü einsortieren
-        pos = sum(1 for c in children if c.get("Title") in
-                  ("BookmarksBar", "BookmarksMenu"))
-        children.insert(pos, top)
-    added = 0
-    for cat, items in group_for_bookmarks(tabs, cfg).items():
-        sub = next((c for c in top["Children"] if c.get("Title") == cat
-                    and c.get("WebBookmarkType") == "WebBookmarkTypeList"), None)
-        if sub is None:
-            sub = _new_folder(cat)
-            top["Children"].append(sub)
-        for t in items:
-            url = clean_url(t.url, tracking)
-            key = normalize_url(url, tracking)
-            if key in existing:
-                continue
-            existing.add(key)
-            sub["Children"].append(_new_leaf(t.title, url))
-            added += 1
-    return added
+    result: Dict[str, int] = {}
+    for t in tabs:
+        url = clean_url(t.url, tracking)
+        key = normalize_url(url, tracking)
+        if key in existing:
+            continue
+        node = None if t.target_new else idx.get(t.target_key) or idx.get(t.target_path)
+        if node is None:
+            # neuen Ordner auf oberster Ebene anlegen (bzw. gleichnamigen wiederverwenden)
+            node = idx.get(t.target_path)
+            if node is None:
+                node = _new_folder(t.target_path)
+                pos = max((i + 1 for i, c in enumerate(children)
+                           if c.get("Title") in SPECIAL_TITLES), default=0)
+                children.insert(pos, node)
+                idx[t.target_path] = node
+        node.setdefault("Children", []).append(_new_leaf(t.title, url))
+        existing.add(key)
+        result[t.target_path] = result.get(t.target_path, 0) + 1
+    return result
 
 
 def write_bookmarks_plist(tabs: List[Tab], cfg: Dict,
-                          path: Path = BOOKMARKS_PLIST) -> Tuple[int, Path]:
+                          path: Path = BOOKMARKS_PLIST) -> Tuple[Dict[str, int], Path]:
     with open(path, "rb") as fh:
         root = plistlib.load(fh)
     stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     backup = path.with_name(f"Bookmarks.plist.backup-{stamp}")
     shutil.copy2(path, backup)
-    added = add_to_bookmark_tree(root, tabs, cfg)
+    result = add_to_existing_folders(root, tabs, cfg)
     tmp = path.with_suffix(".plist.tmp")
     with open(tmp, "wb") as fh:
         plistlib.dump(root, fh, fmt=plistlib.FMT_BINARY)
     os.replace(tmp, path)
-    return added, backup
+    return result, backup
 
 
 def export_html(tabs: List[Tab], cfg: Dict, out: Path) -> int:
-    """Netscape-Bookmark-Datei (Safari: Ablage → Importieren von → Lesezeichen-HTML-Datei)."""
+    """Netscape-Bookmark-Datei als Notlösung/Backup, gruppiert nach Zielordner."""
     tracking = cfg["tracking_params"]
     now = int(time.time())
-    date = _dt.date.today().isoformat()
+    groups: Dict[str, List[Tab]] = {}
+    for t in tabs:
+        groups.setdefault(t.target_path or t.category or "Sonstiges", []).append(t)
     lines = [
         "<!DOCTYPE NETSCAPE-Bookmark-file-1>",
         '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
         "<TITLE>Bookmarks</TITLE>", "<H1>Bookmarks</H1>", "<DL><p>",
-        f'    <DT><H3 ADD_DATE="{now}">{html.escape(cfg["folder"])} {date}</H3>',
-        "    <DL><p>",
     ]
     count = 0
-    for cat, items in group_for_bookmarks(tabs, cfg).items():
-        lines.append(f'        <DT><H3 ADD_DATE="{now}">{html.escape(cat)}</H3>')
-        lines.append("        <DL><p>")
-        for t in items:
+    for name in sorted(groups):
+        lines.append(f'    <DT><H3 ADD_DATE="{now}">{html.escape(name)}</H3>')
+        lines.append("    <DL><p>")
+        for t in groups[name]:
             url = clean_url(t.url, tracking)
-            lines.append(f'            <DT><A HREF="{html.escape(url, quote=True)}" '
+            lines.append(f'        <DT><A HREF="{html.escape(url, quote=True)}" '
                          f'ADD_DATE="{now}">{html.escape(t.title or url)}</A>')
             count += 1
-        lines.append("        </DL><p>")
-    lines += ["    </DL><p>", "</DL><p>", ""]
+        lines.append("    </DL><p>")
+    lines += ["</DL><p>", ""]
     out.write_text("\n".join(lines), encoding="utf-8")
     return count
 
 
 # --------------------------------------------------------------------------
-# Ausgabe & Interaktion
+# Ausgabe
 # --------------------------------------------------------------------------
 def _short(s: str, n: int) -> str:
     s = " ".join((s or "").split())
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
-def print_plan(plan: Plan) -> None:
+def _tw() -> int:
     width = shutil.get_terminal_size((110, 20)).columns
-    tw = max(20, min(50, width - 60))
-    icons = {CLOSE: "✖", BOOKMARK: "★", KEEP: "•"}
-    for t in plan.tabs:
-        info = t.category if t.action == BOOKMARK else t.reason
-        print(f"{t.num:>3} {icons[t.action]} {ACTION_LABEL[t.action]:<11} "
-              f"{_short(t.title or t.url, tw):<{tw}}  {_short(t.host, 24):<24} "
-              f"{_short(info, 30)}")
-    print()
-    print_summary(plan)
+    return max(24, min(48, width - 62))
 
 
-def print_summary(plan: Plan) -> None:
+def _row(t: Tab, info: str) -> str:
+    tw = _tw()
+    return (f"  {t.num:>3}  {_short(t.title or t.url, tw):<{tw}}  "
+            f"{_short(_bare_host(t.host), 22):<22}  {info}")
+
+
+def header(text: str) -> None:
+    print(f"\n━━ {text} " + "━" * max(3, 60 - len(text)))
+
+
+def print_overview(plan: Plan, have_folders: bool) -> None:
+    tabs = plan.tabs
+    windows = len({t.window for t in tabs})
+    hosts: Dict[str, int] = {}
+    for t in tabs:
+        if t.host:
+            h = _bare_host(t.host)
+            hosts[h] = hosts.get(h, 0) + 1
+    header("Überblick")
+    print(f"  {len(tabs)} Tabs in {windows} Fenster{'n' if windows != 1 else ''} · "
+          f"{len(hosts)} verschiedene Seiten")
+    top = sorted(hosts.items(), key=lambda x: -x[1])[:6]
+    if top:
+        print("  Am häufigsten: " + ", ".join(f"{h} ({n})" for h, n in top))
+    reasons: Dict[str, int] = {}
+    for t in plan.by_action(CLOSE):
+        r = re.sub(r" (von #\d+|in .+)$", "", t.reason)
+        reasons[r] = reasons.get(r, 0) + 1
+    if reasons:
+        print("  Überflüssig: " + ", ".join(f"{n}× {r}" for r, n in
+                                            sorted(reasons.items(), key=lambda x: -x[1])))
+    print_close_list(plan)
+    print_bookmark_list(plan, have_folders)
+    keep = plan.by_action(KEEP)
+    if keep:
+        header(f"Bleibt offen ({len(keep)})")
+        for t in keep:
+            print(_row(t, t.reason))
     c, b, k = (len(plan.by_action(a)) for a in (CLOSE, BOOKMARK, KEEP))
-    print(f"{len(plan.tabs)} Tabs: {c} schließen · {b} als Lesezeichen · {k} behalten")
-    cats: Dict[str, int] = {}
-    for t in plan.by_action(BOOKMARK):
-        cats[t.category] = cats.get(t.category, 0) + 1
-    if cats:
-        print("Kategorien: " + ", ".join(f"{k} ({v})" for k, v in
-                                         sorted(cats.items(), key=lambda x: -x[1])))
+    print(f"\n  Empfehlung: {c} schließen · {b} in Lesezeichen sichern · {k} offen lassen")
 
 
-def interactive_review(plan: Plan, cfg: Dict) -> bool:
-    help_text = (
-        "Aktion ändern: Nummern + Buchstabe, z. B. '3s 7l 12b' "
-        "(s = schließen, l = Lesezeichen, b = behalten),\n"
-        "'5-9s' für Bereiche, 'k 4 Videos' setzt Kategorie, "
-        "Enter = ausführen, q = abbrechen."
-    )
-    by_num = {t.num: t for t in plan.tabs}
-    while True:
-        print(help_text)
-        try:
-            ans = input("> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return False
-        if not ans:
-            return True
-        if ans.lower() in ("q", "quit", "exit", "abbrechen"):
-            return False
-        m = re.match(r"^k\s+(\d+)\s+(.+)$", ans, re.I)
-        if m:
-            t = by_num.get(int(m.group(1)))
-            if t:
-                t.action, t.category = BOOKMARK, m.group(2).strip()
+def print_close_list(plan: Plan) -> None:
+    items = plan.by_action(CLOSE)
+    header(f"Empfehlung: schließen ({len(items)})")
+    if not items:
+        print("  – nichts –")
+    for t in items:
+        print(_row(t, t.reason))
+
+
+def print_bookmark_list(plan: Plan, have_folders: bool) -> None:
+    items = plan.by_action(BOOKMARK)
+    header(f"In Lesezeichen sichern ({len(items)})")
+    if not items:
+        print("  – nichts –")
+    for t in sorted(items, key=lambda t: (t.target_new, t.target_path.lower(), t.num)):
+        if have_folders and t.target_path:
+            dest = f"→ {t.target_path}" + (" (neu)" if t.target_new else "")
+            why = f"  [{t.target_why}]" if t.target_why else ""
+            print(_row(t, dest + why))
         else:
-            for tok in ans.replace(",", " ").split():
-                mm = re.match(r"^(\d+)(?:-(\d+))?([slb])$", tok, re.I)
-                if not mm:
-                    print(f"  ? '{tok}' nicht verstanden")
-                    continue
-                a, b = int(mm.group(1)), int(mm.group(2) or mm.group(1))
-                for n in range(a, b + 1):
-                    t = by_num.get(n)
-                    if not t:
-                        continue
-                    t.action = ACTION_KEY[mm.group(3).lower()]
-                    t.reason = "manuell"
-                    if t.action == BOOKMARK and not t.category:
-                        t.category = categorize(t, cfg["categories"])
-        print()
-        print_plan(plan)
+            print(_row(t, t.category))
+
+
+def print_folders(folders: List[Folder]) -> None:
+    header("Deine Lesezeichen-Ordner")
+    for f in folders:
+        print(f"  {f.num:>3}  {'  ' * f.depth}{f.title}  ({f.leaves})")
 
 
 def write_report(plan: Plan, out: Path) -> None:
     lines = [f"# Safari-Tab-Bericht {_dt.datetime.now():%Y-%m-%d %H:%M}", ""]
-    for action, head in ((BOOKMARK, "Als Lesezeichen gesichert"),
-                         (CLOSE, "Geschlossen"), (KEEP, "Offen gelassen")):
+    for action, head in ((CLOSE, "Empfehlung: schließen"),
+                         (BOOKMARK, "In Lesezeichen sichern"),
+                         (KEEP, "Offen lassen")):
         items = plan.by_action(action)
         if not items:
             continue
         lines += [f"## {head} ({len(items)})", ""]
         for t in items:
-            extra = t.category if action == BOOKMARK else t.reason
+            extra = (f"→ {t.target_path}" if t.target_path else t.category) \
+                if action == BOOKMARK else t.reason
             title = (t.title or t.url).replace("[", "(").replace("]", ")")
             lines.append(f"- [{title}]({t.url})" + (f" — {extra}" if extra else ""))
         lines.append("")
@@ -687,47 +911,167 @@ def write_report(plan: Plan, out: Path) -> None:
 
 
 # --------------------------------------------------------------------------
-# Direktes Schreiben in Safari (Safari kurz beenden)
+# Interaktive Schritte
 # --------------------------------------------------------------------------
-def direct_write(tabs_to_save: List[Tab], cfg: Dict) -> None:
+def _ask(prompt: str) -> Optional[str]:
+    try:
+        return input(prompt).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return None
+
+
+def _apply_action_tokens(ans: str, plan: Plan, cfg: Dict,
+                         folders: List[Folder]) -> bool:
+    by_num = {t.num: t for t in plan.tabs}
+    ok = True
+    for tok in ans.replace(",", " ").split():
+        mm = re.match(r"^(\d+)(?:-(\d+))?([slb])$", tok, re.I)
+        if not mm:
+            print(f"  ? „{tok}“ nicht verstanden")
+            ok = False
+            continue
+        a, b = int(mm.group(1)), int(mm.group(2) or mm.group(1))
+        for n in range(a, b + 1):
+            t = by_num.get(n)
+            if not t:
+                continue
+            t.action = ACTION_KEY[mm.group(3).lower()]
+            t.reason = "manuell"
+            if t.action == BOOKMARK and not t.target_path:
+                t.category = t.category or categorize(t, cfg["categories"])
+                if folders:
+                    one = Plan([t])
+                    assign_folders(one, folders, cfg)
+    return ok
+
+
+def step_close(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[bool]:
+    """True = schließen, False = überspringen, None = abbrechen"""
+    while True:
+        n = len(plan.by_action(CLOSE))
+        print(f"\nSchritt 1/2 · {n} empfohlene Tabs schließen?")
+        print("  Enter/j = ja · n = nicht schließen, weiter · q = abbrechen\n"
+              "  ändern: '12b' Tab 12 behalten, '5l' als Lesezeichen, '7s' schließen, "
+              "'3-6b' Bereich")
+        ans = _ask("> ")
+        if ans is None or ans.lower() == "q":
+            return None
+        if ans.lower() in ("", "j", "ja", "y"):
+            return True
+        if ans.lower() in ("n", "nein"):
+            return False
+        _apply_action_tokens(ans, plan, cfg, folders)
+        print_close_list(plan)
+
+
+def step_bookmarks(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[bool]:
+    by_num = {t.num: t for t in plan.tabs}
+    by_fnum = {f.num: f for f in folders}
+    while True:
+        n = len(plan.by_action(BOOKMARK))
+        print(f"\nSchritt 2/2 · {n} Tabs in deine Lesezeichen-Ordner einsortieren?")
+        print("  Enter/j = ja · n = nicht speichern · q = abbrechen\n"
+              "  ändern: 'o' Ordnerliste zeigen · '4>12' Tab 4 in Ordner 12 · "
+              "'4>Neuer Name' neuer Ordner · '4x' Tab 4 nicht speichern")
+        ans = _ask("> ")
+        if ans is None or ans.lower() == "q":
+            return None
+        if ans.lower() in ("", "j", "ja", "y"):
+            return True
+        if ans.lower() in ("n", "nein"):
+            return False
+        if ans.lower() in ("o", "ordner"):
+            print_folders(folders)
+            continue
+        for part in re.split(r"\s*[,;]\s*|\s+(?=\d+(?:-\d+)?(?:>|x\b))", ans):
+            m = re.match(r"^(\d+)(?:-(\d+))?\s*(?:>\s*(.+)|(x))$", part.strip(), re.I)
+            if not m:
+                print(f"  ? „{part}“ nicht verstanden")
+                continue
+            a, b = int(m.group(1)), int(m.group(2) or m.group(1))
+            for i in range(a, b + 1):
+                t = by_num.get(i)
+                if not t:
+                    continue
+                if m.group(4):
+                    t.action, t.reason = KEEP, "manuell"
+                    continue
+                dest = m.group(3).strip()
+                t.action = BOOKMARK
+                if dest.isdigit() and int(dest) in by_fnum:
+                    f = by_fnum[int(dest)]
+                    t.target_key, t.target_path = f.key, f.path
+                    t.target_new, t.target_why = False, "manuell"
+                else:
+                    dl = dest.lower()
+                    existing = next((f for f in folders if dl in
+                                     (f.path.lower(), f.title.lower())), None)
+                    if existing is None:
+                        # eindeutiger Teiltreffer, z. B. "musik" → "Musik & Videos"
+                        partial = [f for f in folders if dl in f.title.lower()]
+                        existing = partial[0] if len(partial) == 1 else None
+                    if existing:
+                        t.target_key, t.target_path = existing.key, existing.path
+                        t.target_new, t.target_why = False, "manuell"
+                    else:
+                        set_new_target(t, dest, "manuell")
+        print_bookmark_list(plan, bool(folders))
+
+
+# --------------------------------------------------------------------------
+# Safari kurz beenden, Lesezeichen schreiben, Safari wieder öffnen
+# --------------------------------------------------------------------------
+def save_into_safari(tabs_to_save: List[Tab], cfg: Dict) -> bool:
     remaining = [t.url for t in read_safari_tabs() if not is_empty(t)]
-    print("Safari wird kurz beendet, um die Lesezeichen einzutragen …")
+    print("\nSafari wird kurz beendet, damit die Lesezeichen sicher eingetragen werden …")
     osascript("function run(){ Application('Safari').quit(); }")
-    for _ in range(40):
+    for _ in range(60):
         if not safari_running():
             break
         time.sleep(0.25)
     else:
-        sys.exit("Safari hat sich nicht beendet – Lesezeichen nicht geschrieben.")
+        print("⚠️  Safari hat sich nicht beendet – Lesezeichen nicht geschrieben.",
+              file=sys.stderr)
+        return False
     time.sleep(0.5)
+    ok = True
     try:
-        added, backup = write_bookmarks_plist(tabs_to_save, cfg)
-        print(f"★ {added} Lesezeichen in „{cfg['folder']}“ eingetragen "
-              f"(Sicherung: {backup.name})")
+        result, backup = write_bookmarks_plist(tabs_to_save, cfg)
+        total = sum(result.values())
+        print(f"★ {total} Lesezeichen eingetragen (Sicherung: {backup.name})")
+        for path, n in sorted(result.items()):
+            print(f"    {path}: +{n}")
+        if total < len(tabs_to_save):
+            print(f"    ({len(tabs_to_save) - total} waren schon vorhanden)")
     except PermissionError:
+        ok = False
         print("⚠️  Kein Schreibzugriff auf Bookmarks.plist – Terminal braucht "
-              "Festplattenvollzugriff. Exportiere stattdessen HTML.", file=sys.stderr)
-        out = default_export_path()
-        export_html(tabs_to_save, cfg, out)
-        print(f"   HTML-Datei: {out}")
+              "Festplattenvollzugriff.", file=sys.stderr)
     finally:
         subprocess.run(["open", "-a", "Safari"])
         time.sleep(3)
         restore_missing(remaining)
+    return ok
 
 
 def restore_missing(urls: List[str]) -> None:
-    """Öffnet Tabs wieder, falls Safari das letzte Fenster nicht wiederhergestellt hat."""
+    """Öffnet Tabs wieder, falls Safari die letzten Fenster nicht wiederhergestellt hat."""
     if not urls:
         return
-    try:
-        now = {normalize_url(t.url) for t in read_safari_tabs()}
-    except SystemExit:
-        now = set()
+    now: set = set()
+    for _ in range(5):
+        try:
+            now = {normalize_url(t.url) for t in read_safari_tabs()}
+        except SystemExit:
+            now = set()
+        if now:
+            break
+        time.sleep(1)
     missing = [u for u in urls if normalize_url(u) not in now]
     if len(missing) > len(urls) / 2:
         osascript(JXA_OPEN, json.dumps(missing))
-        print(f"↺ {len(missing)} Tabs wieder geöffnet.")
+        print(f"↺ {len(missing)} offene Tabs wiederhergestellt.")
 
 
 def default_export_path() -> Path:
@@ -743,26 +1087,27 @@ def default_export_path() -> Path:
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         prog="safari-tabs",
-        description="Analysiert Safari-Tabs, schließt unnötige und sichert "
-                    "die wichtigen geordnet als Lesezeichen.",
+        description="Zeigt einen Überblick über deine Safari-Tabs, empfiehlt welche "
+                    "geschlossen werden können, und sortiert die übrigen in deine "
+                    "vorhandenen Lesezeichen-Ordner ein.",
     )
-    ap.add_argument("-n", "--dry-run", action="store_true",
-                    help="nur analysieren, nichts schließen oder speichern")
+    ap.add_argument("-u", "--overview", "-n", "--dry-run", dest="overview",
+                    action="store_true",
+                    help="nur Überblick und Empfehlung anzeigen, nichts ändern")
     ap.add_argument("-y", "--yes", action="store_true",
-                    help="ohne Rückfrage ausführen")
+                    help="Empfehlung ohne Rückfragen umsetzen")
     ap.add_argument("--close-saved", action="store_true",
-                    help="als Lesezeichen gesicherte Tabs danach auch schließen")
-    ap.add_argument("--direct", action="store_true",
-                    help="Lesezeichen direkt in Safari eintragen (Safari wird "
-                         "dafür kurz beendet, braucht Festplattenvollzugriff)")
+                    help="Tabs nach dem Speichern als Lesezeichen auch schließen")
+    ap.add_argument("--fallback", metavar="NAME",
+                    help="Ordner für Tabs ohne passenden Ordner (Standard: Unsortiert)")
+    ap.add_argument("--report", metavar="DATEI", help="Überblick als Markdown speichern")
     ap.add_argument("--export", metavar="DATEI",
-                    help="Pfad für die Lesezeichen-HTML-Datei "
-                         "(Standard: ~/Downloads/safari-lesezeichen-….html)")
-    ap.add_argument("--report", metavar="DATEI", help="Markdown-Bericht schreiben")
-    ap.add_argument("--folder", help="Name des Lesezeichen-Ordners (Standard: Tab-Archiv)")
+                    help="zusätzlich eine Lesezeichen-HTML-Datei schreiben")
     ap.add_argument("--config", metavar="DATEI", help="eigene Regeln (JSON)")
     ap.add_argument("--dump-config", action="store_true",
                     help="Standard-Konfiguration ausgeben und beenden")
+    ap.add_argument("--bookmarks", metavar="PLIST",
+                    help="andere Bookmarks.plist verwenden (Test)")
     ap.add_argument("--from-json", metavar="DATEI",
                     help="Tabs aus JSON-Datei statt aus Safari lesen (Test)")
     ap.add_argument("--json", action="store_true",
@@ -774,8 +1119,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     cfg = load_config(args.config)
-    if args.folder:
-        cfg["folder"] = args.folder
+    if args.fallback:
+        cfg["fallback_folder"] = args.fallback
 
     offline = bool(args.from_json)
     if offline:
@@ -789,52 +1134,77 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Keine Tabs gefunden.")
         return 0
 
-    root = None if offline else load_bookmarks()
-    bookmarked = ({normalize_url(u, cfg["tracking_params"]) for u in iter_bookmark_urls(root)}
-                  if root else set())
-    plan = analyze(tabs, cfg, bookmarked)
+    plist_path = Path(args.bookmarks).expanduser() if args.bookmarks else BOOKMARKS_PLIST
+    root = load_bookmarks(plist_path)
+    folders = collect_folders(root) if root else []
+    plan = analyze(tabs, cfg, bookmark_index(root, cfg["tracking_params"]))
+    if folders:
+        assign_folders(plan, folders, cfg)
 
     if args.json:
         print(json.dumps([t.__dict__ for t in plan.tabs], indent=2, ensure_ascii=False))
         return 0
 
-    print_plan(plan)
+    print_overview(plan, bool(folders))
     if args.report:
         write_report(plan, Path(args.report).expanduser())
-        print(f"Bericht: {args.report}")
-    if args.dry_run:
+        print(f"\nBericht gespeichert: {args.report}")
+    if args.overview:
         return 0
-    if not args.yes and not interactive_review(plan, cfg):
+
+    # ---- Schritt 1: schließen --------------------------------------------
+    do_close = True if args.yes else step_close(plan, cfg, folders)
+    if do_close is None:
         print("Abgebrochen – nichts geändert.")
         return 1
+    if do_close:
+        to_close = plan.by_action(CLOSE)
+        if offline:
+            print(f"(Test) würde {len(to_close)} Tabs schließen.")
+        elif to_close:
+            res = close_tabs(to_close)
+            print(f"✖ {res['closed']} Tabs geschlossen"
+                  + (f", {res['skipped']} übersprungen (inzwischen verändert)"
+                     if res["skipped"] else ""))
 
+    # ---- Schritt 2: in Lesezeichen-Ordner einsortieren -------------------
+    if not plan.by_action(BOOKMARK):
+        print("Keine Tabs zum Speichern.")
+        return 0
+    if not folders:
+        print("\nOhne Zugriff auf deine Lesezeichen kann ich nicht in vorhandene Ordner "
+              "einsortieren.")
+    do_save = True if args.yes else step_bookmarks(plan, cfg, folders)
+    if do_save is None:
+        print("Abgebrochen – Lesezeichen nicht geändert.")
+        return 1
+    if not do_save:
+        return 0
     to_save = plan.by_action(BOOKMARK)
-    to_close = plan.by_action(CLOSE) + (to_save if args.close_saved else [])
 
-    # 1) Lesezeichen zuerst sichern (HTML immer als Backup)
-    if to_save:
+    if args.export or not folders:
         out = Path(args.export).expanduser() if args.export else default_export_path()
         n = export_html(to_save, cfg, out)
-        print(f"★ {n} Lesezeichen exportiert: {out}")
+        print(f"Lesezeichen-Datei ({n}): {out}\n"
+              "  Safari: Ablage → Importieren von → Lesezeichen-HTML-Datei …")
 
-    # 2) Tabs schließen
-    if offline:
-        print(f"(offline) würde {len(to_close)} Tabs schließen.")
-    elif to_close:
-        res = close_tabs(to_close)
-        print(f"✖ {res['closed']} Tabs geschlossen"
-              + (f", {res['skipped']} übersprungen (inzwischen verändert)"
-                 if res["skipped"] else ""))
-
-    # 3) Lesezeichen in Safari übernehmen
-    if to_save and not offline:
-        if args.direct:
-            direct_write(to_save, cfg)
+    if folders:
+        if offline:
+            # Test: in die angegebene plist schreiben (nur mit --bookmarks)
+            if args.bookmarks:
+                result, backup = write_bookmarks_plist(to_save, cfg, plist_path)
+                print(f"★ {sum(result.values())} Lesezeichen eingetragen: "
+                      + ", ".join(f"{p} +{n}" for p, n in sorted(result.items())))
+            else:
+                print(f"(Test) würde {len(to_save)} Lesezeichen eintragen.")
         else:
-            print("\nZum Übernehmen in Safari: Ablage → Importieren von → "
-                  "Lesezeichen-HTML-Datei … → die Datei oben wählen.\n"
-                  "(Oder nächstes Mal mit --direct automatisch eintragen.)")
-            subprocess.run(["open", "-R", str(out)])
+            if not save_into_safari(to_save, cfg):
+                return 1
+
+    if args.close_saved and not offline:
+        res = close_tabs([t for t in read_safari_tabs()
+                          if normalize_url(t.url) in {normalize_url(s.url) for s in to_save}])
+        print(f"✖ {res['closed']} gespeicherte Tabs geschlossen")
     return 0
 
 

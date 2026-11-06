@@ -1,10 +1,14 @@
 # safari-tabs
 
-Räumt deine Safari-Tabs auf: analysiert alle offenen Tabs, **schließt unnötige** und **sichert die wichtigen geordnet nach Kategorien als Lesezeichen**.
+Räumt deine Safari-Tabs in zwei Schritten auf:
+
+1. **Überblick & Empfehlung:** Du siehst alle offenen Tabs auf einen Blick: wie viele, welche Seiten am häufigsten, und welche Tabs du schließen kannst (mit Begründung).
+2. **Schließen:** Nach deiner Bestätigung werden die empfohlenen Tabs geschlossen.
+3. **Einsortieren:** Die übrigen Tabs kommen in deine **vorhandenen Lesezeichen-Ordner**. Das Tool schlägt für jeden Tab den passenden Ordner vor, du kannst jede Zuordnung ändern.
 
 Nur Python-Standardbibliothek – läuft mit dem `python3`, das macOS mitbringt.
 
-## Was als „unnötig“ gilt
+## Was zum Schließen empfohlen wird
 
 | Regel | Beispiel |
 |---|---|
@@ -13,80 +17,91 @@ Nur Python-Standardbibliothek – läuft mit dem `python3`, das macOS mitbringt.
 | Suchergebnisse | Google, Bing, DuckDuckGo, Ecosia, YouTube-/Amazon-Suche … |
 | Login-/Anmeldeseiten | `accounts.google.com`, `/login`, `/oauth` … |
 | Fehlerseiten | „404 Not Found“, „Safari kann die Seite nicht öffnen“ |
-| Bereits gespeichert | URL ist schon in deinen Lesezeichen |
+| Schon gespeichert | URL liegt schon in deinen Lesezeichen (das Tool zeigt, in welchem Ordner) |
 
-Web-Apps wie Gmail, Kalender, WhatsApp Web, Spotify, `localhost` bleiben **offen** und werden nicht gespeichert.
-Alles andere wird als Lesezeichen gesichert, in den Ordner **Tab-Archiv** mit Unterordnern wie *Entwicklung, Videos, Nachrichten, Social, Shopping, Wissen & Lernen, Arbeit & Dokumente, Reisen & Orte, Rezepte, Finanzen, Sonstiges*.
+Web-Apps wie Gmail, Kalender, WhatsApp Web, Spotify und `localhost` bleiben offen und werden nicht gespeichert.
 
-## Installation
+## Wie der passende Ordner gefunden wird
+
+Für jeden Tab werden alle deine Lesezeichen-Ordner (inkl. Unterordner) bewertet:
+
+1. **Gleiche Website:** Der Ordner enthält schon Lesezeichen von derselben Seite/Domain (stärkstes Signal).
+2. **Stichwort:** Ein Wort aus dem Ordnernamen steht im Titel oder in der Adresse des Tabs (Ordner „Python“ ← „Sorting HOW TO — Python docs“).
+3. **Thema:** Der Ordnername passt zum Thema der Seite (Ordner „Kochen“ ← chefkoch.de, „Reisen“ ← booking.com, „Dev“ ← github.com …).
+
+Bei mehreren Treffern gewinnt der spezifischere Unterordner. Tabs ohne passenden Ordner landen in **Unsortiert** (wird nur bei Bedarf angelegt, Name änderbar mit `--fallback`). Die Leseliste wird ignoriert.
+
+## Einrichtung (einmalig)
 
 ```bash
 git clone https://github.com/babizeps/dev.git && cd dev/safari-tabs
 ```
 
-Beim ersten Start fragt macOS, ob Terminal Safari steuern darf → **OK**
-(sonst: Systemeinstellungen → Datenschutz & Sicherheit → Automation → Terminal → Safari).
-
-Damit bereits gespeicherte Lesezeichen erkannt werden und für `--direct`:
-Systemeinstellungen → Datenschutz & Sicherheit → **Festplattenvollzugriff** → Terminal aktivieren.
+- **Festplattenvollzugriff für Terminal** – nötig, damit das Tool deine Lesezeichen-Ordner sehen kann:
+  Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff → Terminal aktivieren, Terminal neu starten.
+- **Safari steuern:** Beim ersten Start fragt macOS, ob Terminal Safari steuern darf → **OK**.
 
 ## Benutzung
 
 ```bash
-python3 safari_tabs.py --dry-run          # nur anzeigen, nichts ändern
-python3 safari_tabs.py                    # anzeigen, korrigieren, dann ausführen
-python3 safari_tabs.py --direct           # Lesezeichen direkt in Safari eintragen
-python3 safari_tabs.py --direct --close-saved   # gesicherte Tabs danach auch schließen
+python3 safari_tabs.py --overview      # nur Überblick + Empfehlung, nichts ändern
+python3 safari_tabs.py                 # Überblick, dann Schritt 1 (schließen) und Schritt 2 (einsortieren)
 ```
 
-Nach der Analyse siehst du eine nummerierte Liste und kannst vor dem Ausführen korrigieren:
-
+**Schritt 1 – schließen**
 ```
-> 3s 7l 12b      # 3 schließen, 7 als Lesezeichen, 12 behalten
-> 5-9s           # 5 bis 9 schließen
-> k 4 Videos     # Tab 4 in Kategorie „Videos“
-> (Enter)        # ausführen      q = abbrechen
+Enter / j    empfohlene Tabs schließen
+n            nichts schließen, weiter zu Schritt 2
+12b 5l 7s    Tab 12 behalten, 5 als Lesezeichen, 7 schließen   (3-6b = Bereich)
+q            abbrechen
 ```
 
-### Wie die Lesezeichen in Safari landen
+**Schritt 2 – einsortieren**
+```
+Enter / j    Lesezeichen wie vorgeschlagen eintragen
+o            nummerierte Liste deiner Ordner anzeigen
+4>12         Tab 4 in Ordner Nr. 12
+4>Kochen     Tab 4 in Ordner „Kochen“ (Teilname reicht, sonst wird ein neuer Ordner angelegt)
+4x           Tab 4 nicht speichern
+q            abbrechen
+```
 
-- **Standard:** Es wird eine HTML-Datei in `~/Downloads` erzeugt. In Safari: *Ablage → Importieren von → Lesezeichen-HTML-Datei…*
-- **`--direct`:** Das Tool beendet Safari kurz, trägt die Lesezeichen in `~/Library/Safari/Bookmarks.plist` ein (vorher wird eine Sicherung `Bookmarks.plist.backup-…` angelegt) und startet Safari wieder. Falls Safari deine restlichen Tabs nicht wiederherstellt, öffnet das Tool sie neu. Doppelte Lesezeichen werden übersprungen, mehrere Läufe ergänzen denselben Ordner.
-  Hinweis: Mit iCloud-Lesezeichen-Sync funktioniert das normalerweise, die HTML-Datei bleibt aber immer als Backup erhalten.
+Zum Eintragen beendet das Tool Safari kurz (sonst würde Safari die Änderung überschreiben), legt vorher eine Sicherung `~/Library/Safari/Bookmarks.plist.backup-…` an und öffnet Safari wieder. Falls Safari deine Tabs nicht selbst wiederherstellt, öffnet das Tool sie neu. Bereits vorhandene Lesezeichen werden nie doppelt eingetragen.
 
 ### Weitere Optionen
 
 | Option | Zweck |
 |---|---|
-| `-y`, `--yes` | ohne Rückfrage ausführen |
-| `--folder NAME` | anderer Ordnername als „Tab-Archiv“ |
-| `--report bericht.md` | Markdown-Bericht mit allen Tabs schreiben |
-| `--export datei.html` | Speicherort der HTML-Datei |
+| `-y`, `--yes` | Empfehlung ohne Rückfragen umsetzen |
+| `--close-saved` | eingeordnete Tabs danach auch schließen |
+| `--fallback NAME` | Ordner für Tabs ohne Treffer (Standard: „Unsortiert“) |
+| `--report bericht.md` | Überblick als Markdown speichern |
+| `--export datei.html` | zusätzlich eine Lesezeichen-HTML-Datei schreiben |
 | `--config regeln.json` | eigene Regeln (siehe unten) |
 | `--dump-config` | Standardregeln anzeigen |
 | `--json` | Analyse als JSON ausgeben |
-| `--from-json tabs.json` | Tabs aus Datei lesen (zum Testen ohne Safari) |
+
+**Sicherung zurückspielen:** Safari beenden, dann `cp ~/Library/Safari/Bookmarks.plist.backup-DATUM ~/Library/Safari/Bookmarks.plist`.
 
 ## Eigene Regeln
 
-`python3 safari_tabs.py --dump-config > regeln.json`, anpassen, dann mit `--config regeln.json` starten. Es reicht, nur die geänderten Schlüssel anzugeben:
+`python3 safari_tabs.py --dump-config > regeln.json`, anpassen, mit `--config regeln.json` starten. Nur geänderte Schlüssel sind nötig:
 
 ```json
 {
-  "folder": "Leseliste",
+  "fallback_folder": "Später lesen",
+  "min_match_score": 4,
   "close_patterns": ["^https?://(www\\.)?bild\\.de/"],
   "bookmark_patterns": ["^https?://intranet\\.firma\\.de/"],
   "keep_open_patterns": ["^https?://app\\.todoist\\.com/"],
-  "categories": {
-    "Uni": ["moodle.uni-beispiel.de", "re:/vorlesung/"]
-  }
+  "categories": { "Uni": ["moodle.uni-beispiel.de", "re:/vorlesung/"] }
 }
 ```
 
-Kategorien: Domain (passt auch auf Subdomains), `domain/pfad` oder `re:` + regulärer Ausdruck. Eigene Kategorien haben Vorrang vor den Standardkategorien.
-
-## Tests
+## Tests (ohne Mac)
 
 ```bash
 python3 -m unittest discover -s tests
+python3 tests/make_sample_plist.py /tmp/B.plist
+python3 safari_tabs.py --from-json tests/sample_tabs.json --bookmarks /tmp/B.plist
 ```
