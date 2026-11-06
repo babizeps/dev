@@ -1,0 +1,15 @@
+[
+ {"window": 1, "index": 1, "title": "Favoriten", "url": "favorites://"},
+ {"window": 1, "index": 2, "title": "anthropics/claude-code · GitHub", "url": "https://github.com/anthropics/claude-code"},
+ {"window": 1, "index": 3, "title": "anthropics/claude-code", "url": "https://www.github.com/anthropics/claude-code/?utm_source=x"},
+ {"window": 1, "index": 4, "title": "python dict sortieren - Google Suche", "url": "https://www.google.de/search?q=python+dict+sortieren"},
+ {"window": 1, "index": 5, "title": "Sorting HOW TO — Python docs", "url": "https://docs.python.org/3/howto/sorting.html"},
+ {"window": 2, "index": 1, "title": "Gmail", "url": "https://mail.google.com/mail/u/0/#inbox"},
+ {"window": 2, "index": 2, "title": "Anmelden – Google Konten", "url": "https://accounts.google.com/signin/v2"},
+ {"window": 2, "index": 3, "title": "Wie Vulkane entstehen | Wikipedia", "url": "https://de.wikipedia.org/wiki/Vulkan"},
+ {"window": 2, "index": 4, "title": "Lofi beats - YouTube", "url": "https://www.youtube.com/watch?v=abc&t=120"},
+ {"window": 2, "index": 5, "title": "Lofi beats - YouTube", "url": "https://m.youtube.com/watch?v=abc"},
+ {"window": 2, "index": 6, "title": "404 Not Found", "url": "https://example.com/missing"},
+ {"window": 2, "index": 7, "title": "Lasagne Rezept | Chefkoch", "url": "https://www.chefkoch.de/rezepte/123/lasagne.html"},
+ {"window": 2, "index": 8, "title": "Mein Blog", "url": "https://someblog.example.org/post/1"}
+]
