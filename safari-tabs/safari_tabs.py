@@ -147,7 +147,7 @@ CATEGORY_SYNONYMS: Dict[str, List[str]] = {
     "Entwicklung": ["dev", "development", "entwicklung", "programmieren",
                     "programming", "code", "coding", "software", "tech",
                     "technik", "python", "javascript", "web", "informatik",
-                    "github", "docs", "doku", "dokumentation", "ki", "ai"],
+                    "github", "docs", "doku", "dokumentation"],
     "Videos": ["video", "videos", "youtube", "film", "filme", "serien",
                "streaming", "anschauen", "watch", "musik", "music", "mediathek"],
     "Nachrichten": ["news", "nachrichten", "artikel", "presse", "zeitung",
@@ -168,6 +168,115 @@ CATEGORY_SYNONYMS: Dict[str, List[str]] = {
                  "investieren", "steuern", "versicherung"],
 }
 
+# Art des Inhalts (Video, Artikel, Tool …). Passt sehr gut zu Ordnern, die nach
+# Inhaltsart benannt sind. Reihenfolge = Priorität.
+#   "label":  Anzeige
+#   "folder_words": Wörter im Ordnernamen, die zu dieser Art passen
+#   "rules":  Domain, domain/pfad oder "re:" + Regex (auf URL), "title:" + Regex (auf Titel)
+KINDS: Dict[str, Dict] = {
+    "ai-chat": {
+        "label": "KI-Chat",
+        "folder_words": ["ai", "ki", "chat", "chats", "gpt", "llm", "prompts", "prompt",
+                         "chatbot", "chatbots", "assistant"],
+        "rules": ["chatgpt.com", "chat.openai.com", "claude.ai", "gemini.google.com",
+                  "aistudio.google.com", "perplexity.ai", "copilot.microsoft.com",
+                  "poe.com", "chat.mistral.ai", "chat.deepseek.com", "grok.com",
+                  "x.com/i/grok", "huggingface.co/chat", "meta.ai", "you.com",
+                  "notebooklm.google.com", "chat.qwen.ai", "le-chat.mistral.ai"],
+    },
+    "video": {
+        "label": "Video",
+        "folder_words": ["video", "videos", "youtube", "film", "filme", "movies",
+                         "watch", "anschauen", "mediathek", "clips", "serien"],
+        "rules": ["youtube.com", "youtu.be", "vimeo.com", "twitch.tv", "netflix.com",
+                  "dailymotion.com", "ted.com", "ardmediathek.de", "zdf.de",
+                  "arte.tv", "3sat.de", "primevideo.com", "disneyplus.com",
+                  "joyn.de", "loom.com", "tiktok.com", "nebula.tv",
+                  "re:/videos?/", "title:\\b(video|trailer|livestream)\\b"],
+    },
+    "event": {
+        "label": "Event",
+        "folder_words": ["event", "events", "veranstaltung", "veranstaltungen",
+                         "termine", "tickets", "konzerte", "konferenz", "konferenzen",
+                         "meetups", "festival", "festivals"],
+        "rules": ["eventbrite.com", "eventbrite.de", "meetup.com", "lu.ma", "luma.com",
+                  "eventim.de", "ticketmaster.de", "ticketmaster.com", "reservix.de",
+                  "rausgegangen.de", "dice.fm", "residentadvisor.net", "ra.co",
+                  "facebook.com/events", "sessionize.com", "pretix.eu", "tito.io",
+                  "re:/(events?|veranstaltungen?|tickets?)/",
+                  "title:\\b(tickets?|konferenz|conference|festival|webinar|meetup|"
+                  "workshop|konzert|veranstaltung|summit)\\b"],
+    },
+    "forum": {
+        "label": "Forum",
+        "folder_words": ["forum", "foren", "forums", "community", "communities",
+                         "diskussion", "diskussionen", "discussion", "threads", "reddit"],
+        "rules": ["reddit.com", "stackoverflow.com", "stackexchange.com",
+                  "superuser.com", "serverfault.com", "askubuntu.com",
+                  "news.ycombinator.com", "lobste.rs", "quora.com", "gutefrage.net",
+                  "discussions.apple.com", "forums.macrumors.com", "discord.com",
+                  "community.", "re:^https?://(forum|forums|community|discuss|discourse)\\.",
+                  "re:/(forum|forums|community|discussions?|threads?)/",
+                  "re:/t/[^/]+/\\d+", "github.com/[^/]+/[^/]+/(issues|discussions)"],
+    },
+    "book": {
+        "label": "Buch",
+        "folder_words": ["book", "books", "buch", "bücher", "buecher", "lesen",
+                         "reading", "bibliothek", "hörbücher", "audiobooks", "ebooks"],
+        "rules": ["goodreads.com", "thalia.de", "hugendubel.de", "buecher.de",
+                  "books.google.com", "audible.de", "audible.com", "openlibrary.org",
+                  "gutenberg.org", "projekt-gutenberg.org", "perlentaucher.de",
+                  "storygraph.com", "oreilly.com/library", "manning.com", "leanpub.com",
+                  "re:isbn", "re:/(buch|book|books|ebook)/",
+                  "title:\\b(buch|roman|hörbuch|ebook|e-book|taschenbuch|"
+                  "gebundene ausgabe|hardcover|paperback|kindle edition)\\b"],
+    },
+    "shop": {
+        "label": "Shop",
+        "folder_words": ["shop", "shops", "shopping", "einkaufen", "kaufen",
+                         "wunschliste", "wishlist", "store", "produkte", "geschenke"],
+        "rules": ["amazon.de", "amazon.com", "ebay.de", "ebay.com", "kleinanzeigen.de",
+                  "idealo.de", "geizhals.de", "otto.de", "zalando.de", "etsy.com",
+                  "mediamarkt.de", "saturn.de", "ikea.com", "aliexpress.com", "temu.com",
+                  "galaxus.de", "about-you.de", "aboutyou.de", "decathlon.de",
+                  "apple.com/de/shop", "apple.com/shop", "re:/(products?|produkt|dp|item|artikel/\\d)/",
+                  "re:(warenkorb|/cart|/checkout)", "re:^https?://shop\\.",
+                  "re:^https?://[^/]*store\\."],
+    },
+    "tool": {
+        "label": "Tool",
+        "folder_words": ["tool", "tools", "werkzeug", "werkzeuge", "apps", "app",
+                         "software", "utilities", "utils", "dienste", "services", "helfer"],
+        "rules": ["github.com", "gitlab.com", "figma.com", "canva.com", "notion.so",
+                  "miro.com", "trello.com", "airtable.com", "deepl.com", "translate.google.com",
+                  "regex101.com", "smallpdf.com", "ilovepdf.com", "tinypng.com",
+                  "remove.bg", "excalidraw.com", "draw.io", "app.diagrams.net",
+                  "photopea.com", "squoosh.app", "codepen.io", "jsfiddle.net",
+                  "replit.com", "vercel.com", "netlify.com", "zapier.com", "make.com",
+                  "producthunt.com", "alternativeto.net", "apps.apple.com",
+                  "chromewebstore.google.com", "addons.mozilla.org", "huggingface.co",
+                  "docs.google.com", "sheets.google.com", "drive.google.com",
+                  "re:^https?://app\\.",
+                  "title:\\b(tool|generator|converter|konverter|rechner|calculator|"
+                  "editor|online[- ]tool|app)\\b"],
+    },
+    "article": {
+        "label": "Artikel",
+        "folder_words": ["article", "articles", "artikel", "read", "lesen", "später",
+                         "later", "news", "nachrichten", "blog", "blogs", "posts",
+                         "beiträge", "essays", "readlater", "lesestoff"],
+        "rules": ["medium.com", "substack.com", "wikipedia.org", "spiegel.de", "zeit.de",
+                  "faz.net", "sueddeutsche.de", "tagesschau.de", "heise.de", "golem.de",
+                  "t3n.de", "welt.de", "handelsblatt.com", "nzz.ch", "derstandard.at",
+                  "taz.de", "nytimes.com", "theguardian.com", "bbc.com", "bbc.co.uk",
+                  "reuters.com", "theverge.com", "arstechnica.com", "techcrunch.com",
+                  "wired.com", "economist.com", "theatlantic.com", "dev.to",
+                  "hashnode.dev", "ghost.io", "wordpress.com", "blogspot.com",
+                  "re:/(article|articles|artikel|blog|news|posts?|story|stories|"
+                  "magazin|magazine)/", "re:/20\\d\\d/\\d\\d/"],
+    },
+}
+
 SEARCH_ENGINES: List[Tuple[str, str, Optional[str]]] = [
     # (Host-Regex, Pfad-Präfix, Pflicht-Query-Parameter)
     (r"(^|\.)google\.[a-z.]+$", "/search", None),
@@ -179,7 +288,6 @@ SEARCH_ENGINES: List[Tuple[str, str, Optional[str]]] = [
     (r"(^|\.)startpage\.com$", "/", "query"),
     (r"(^|\.)search\.yahoo\.com$", "/search", None),
     (r"(^|\.)qwant\.com$", "/", "q"),
-    (r"(^|\.)perplexity\.ai$", "/search", None),
     (r"(^|\.)youtube\.com$", "/results", None),
     (r"(^|\.)amazon\.[a-z.]+$", "/s", "k"),
     (r"(^|\.)ebay\.[a-z.]+$", "/sch/", None),
@@ -222,6 +330,7 @@ class Tab:
     action: str = KEEP
     reason: str = ""
     category: str = ""
+    kind: str = ""           # Inhaltsart (Schlüssel aus KINDS)
     num: int = 0         # laufende Nummer in der Anzeige
     # Ziel-Lesezeichenordner
     target_key: str = ""     # UUID oder Pfad des Ordners
@@ -339,6 +448,37 @@ def is_auth(url: str) -> bool:
     return bool(AUTH_PATH.search(parts.path))
 
 
+def _rule_matches(rule: str, tab: Tab, host: str, hostpath: str) -> bool:
+    if rule.startswith("re:"):
+        return re.search(rule[3:], tab.url, re.I) is not None
+    if rule.startswith("title:"):
+        return re.search(rule[6:], tab.title or "", re.I) is not None
+    if rule.endswith(".") and "/" not in rule:          # z. B. "community."
+        return host.startswith(rule)
+    if "/" in rule:
+        if any(ch in rule for ch in "[]()^$+*?\\"):
+            return re.match(rule, hostpath, re.I) is not None
+        return hostpath.startswith(rule.lower())
+    return host == rule or host.endswith("." + rule)
+
+
+def detect_kind(tab: Tab) -> Tuple[str, bool]:
+    """Liefert (Inhaltsart, sicher?). Unsicher = nur aus der URL-Form geraten."""
+    host = (tab.host or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    hostpath = host + urlsplit(tab.url).path.lower()
+    for kind, spec in KINDS.items():
+        if any(_rule_matches(r, tab, host, hostpath) for r in spec["rules"]):
+            return kind, True
+    # Heuristik: tiefer Pfad / sprechender Slug → vermutlich Artikel
+    path = urlsplit(tab.url).path.strip("/")
+    last = path.rsplit("/", 1)[-1]
+    if path and (path.count("/") >= 2 or last.count("-") >= 2):
+        return "article", False
+    return "", False
+
+
 def categorize(tab: Tab, categories: Dict[str, List[str]]) -> str:
     host = tab.host
     if host.startswith("www."):
@@ -407,6 +547,9 @@ def analyze(tabs: List[Tab], cfg: Dict,
             seen[key] = tab
         if tab.action == BOOKMARK:
             tab.category = categorize(tab, cfg["categories"])
+            tab.kind, sure = detect_kind(tab)
+            if tab.kind and not sure:
+                tab.kind = "~" + tab.kind
 
     return Plan(tabs)
 
@@ -647,6 +790,13 @@ def score_folder(tab: Tab, f: Folder) -> Tuple[float, str]:
     if hits:
         score += 4 * len(hits)
         why = why or f"Stichwort „{', '.join(hits)}“"
+    kind = tab.kind.lstrip("~")
+    if kind and f.tokens & set(KINDS[kind]["folder_words"]):
+        bonus = 8 if not tab.kind.startswith("~") else 4
+        score += bonus
+        label = KINDS[kind]["label"]
+        if not why or (bonus >= 8 and score - bonus < 7):
+            why = f"{label}-Seite" if bonus >= 8 else f"vermutlich {label}"
     syn = set(CATEGORY_SYNONYMS.get(tab.category, []))
     if tab.category and (f.tokens & syn or f.title.lower() == tab.category.lower()):
         score += 3

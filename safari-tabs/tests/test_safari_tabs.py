@@ -112,5 +112,39 @@ class FolderMatchTest(unittest.TestCase):
             self.assertNotIn("utm_source", out.read_text(encoding="utf-8"))
 
 
+class ContentTypeFoldersTest(unittest.TestCase):
+    """Ordner nach Inhaltsart, wie Video / Book / Article / Tool / Event / Forum / AI-Chat / Shop."""
+
+    CASES = [
+        ("Lofi beats - YouTube", "https://www.youtube.com/watch?v=abc", "Video"),
+        ("ChatGPT", "https://chatgpt.com/c/123", "AI-Chat"),
+        ("Claude", "https://claude.ai/chat/abc", "AI-Chat"),
+        ("Perplexity", "https://www.perplexity.ai/search/was-ist-xyz", "AI-Chat"),
+        ("Atomic Habits | Goodreads", "https://www.goodreads.com/book/show/40121378", "Book"),
+        ("Clean Code: Buch", "https://www.thalia.de/shop/home/artikeldetails/A1", "Book"),
+        ("Vulkane - SPIEGEL", "https://www.spiegel.de/wissenschaft/vulkane-a-1.html", "Article"),
+        ("Blogpost", "https://blog.example.org/2025/03/mein-erster-beitrag", "Article"),
+        ("regex101", "https://regex101.com/", "Tool"),
+        ("anthropics/claude-code", "https://github.com/anthropics/claude-code", "Tool"),
+        ("Bug · Issue #12", "https://github.com/foo/bar/issues/12", "Forum"),
+        ("r/macapps", "https://www.reddit.com/r/macapps/comments/abc/t/", "Forum"),
+        ("Tech Meetup", "https://www.meetup.com/berlin-tech/events/123/", "Event"),
+        ("Konzert Tickets", "https://www.eventim.de/event/konzert-123/", "Event"),
+        ("AirPods Pro", "https://www.amazon.de/Apple-AirPods-Pro/dp/B0CHWRXH8B", "Shop"),
+    ]
+
+    def test_kind_folders(self):
+        from make_sample_plist import folder
+        names = ["Video", "Book", "Article", "Tool", "Event", "Forum", "AI-Chat", "Shop"]
+        root = {"Children": [folder("BookmarksBar", []),
+                             folder("BookmarksMenu", [folder(n, []) for n in names])]}
+        cfg = st.load_config(None)
+        tabs = [st.Tab(1, i + 1, t, u) for i, (t, u, _) in enumerate(self.CASES)]
+        plan = st.analyze(tabs, cfg, {})
+        st.assign_folders(plan, st.collect_folders(root), cfg)
+        for tab, (_, _, want) in zip(plan.tabs, self.CASES):
+            self.assertEqual(tab.target_path, "Lesezeichenmenü/" + want, tab.title)
+
+
 if __name__ == "__main__":
     unittest.main()

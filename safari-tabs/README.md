@@ -23,8 +23,9 @@ Web-Apps wie Gmail, Kalender, WhatsApp Web, Spotify und `localhost` bleiben offe
 
 ## Wie der passende Ordner gefunden wird
 
-Für jeden Tab werden alle deine Lesezeichen-Ordner (inkl. Unterordner) bewertet:
+Für jeden Tab werden alle deine Lesezeichen-Ordner (inkl. Unterordner) bewertet. Die wichtigsten Hinweise sind:
 
+1. **Art des Inhalts:** Das Tool erkennt, ob ein Tab ein Video, Buch, Artikel, Tool, Event, Forum, KI-Chat oder Shop ist (YouTube → Video, ChatGPT/Claude/Perplexity → KI-Chat, Reddit/Stack Overflow/GitHub-Issues → Forum, Goodreads/Thalia → Buch, Amazon/Zalando → Shop, Meetup/Eventim → Event, Nachrichtenseiten/Blogs → Artikel, GitHub/regex101/Online-Konverter → Tool). Ordner, die so heißen (auch auf Englisch: *Video, Book, Article, Tool, Event, Forum, AI-Chat, Shop*), werden automatisch erkannt.
 1. **Gleiche Website:** Der Ordner enthält schon Lesezeichen von derselben Seite/Domain (stärkstes Signal).
 2. **Stichwort:** Ein Wort aus dem Ordnernamen steht im Titel oder in der Adresse des Tabs (Ordner „Python“ ← „Sorting HOW TO — Python docs“).
 3. **Thema:** Der Ordnername passt zum Thema der Seite (Ordner „Kochen“ ← chefkoch.de, „Reisen“ ← booking.com, „Dev“ ← github.com …).
