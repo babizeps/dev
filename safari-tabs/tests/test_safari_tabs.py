@@ -527,9 +527,11 @@ class AutomationTest(unittest.TestCase):
         report = Path(res["bericht"]).read_text(encoding="utf-8")
         self.assertIn("Restaurant Luigi", report)               # unsicher → zur Prüfung
         self.assertNotIn("Gmail", report.split("## Zur Prüfung")[1])  # Web-App bleibt einfach offen
-        self.assertIn("2 geschlossen · 1 gespeichert · 1 zur Prüfung", self.notes[-1])
+        self.assertIn("2 geschlossen · 1 gespeichert · 0 einsortiert · 1 zur Prüfung",
+                      self.notes[-1])
         # rückgängig über den Verlauf
-        self.assertEqual(st.last_undoable()["aktion"], "Automatik: Lesezeichen gespeichert")
+        self.assertEqual(st.last_undoable()["aktion"],
+                         "Automatik: Tabs gespeichert und alles geordnet")
         # am selben Tag nicht noch einmal
         self.closed.clear()
         self.assertEqual(st.run_auto(), 0)
@@ -546,7 +548,7 @@ class AutomationTest(unittest.TestCase):
 
     def test_due_logic(self):
         now = st._dt.datetime(2026, 11, 10, 12, 0)
-        state = {"einstellungen": dict(st.AUTO_DEFAULTS)}
+        state = {"einstellungen": dict(st.AUTO_DEFAULTS, haeufigkeit="taeglich")}
         self.assertTrue(st.auto_due(state, now))
         state["letzter_lauf"] = "2026-11-10T08:00:00"
         self.assertFalse(st.auto_due(state, now))
@@ -556,6 +558,12 @@ class AutomationTest(unittest.TestCase):
         self.assertFalse(st.auto_due(state, now))
         state["letzter_lauf"] = "2026-11-03T11:00:00"
         self.assertTrue(st.auto_due(state, now))
+        state["einstellungen"]["haeufigkeit"] = "monatlich"
+        state["letzter_lauf"] = "2026-11-01T09:00:00"
+        self.assertFalse(st.auto_due(state, now))
+        state["letzter_lauf"] = "2026-10-31T23:00:00"
+        self.assertTrue(st.auto_due(state, now))
+        self.assertEqual(st.AUTO_DEFAULTS["haeufigkeit"], "monatlich")
 
     def test_install_writes_launch_agent(self):
         calls = []
@@ -598,6 +606,85 @@ class AutomationTest(unittest.TestCase):
         st.subprocess = FakeSub
         st.user_idle_seconds = self.saved["user_idle_seconds"]
         self.assertAlmostEqual(st.user_idle_seconds(), 1234.0)
+
+
+class OrganizeTest(unittest.TestCase):
+    """Selbständiges Ordnen (monatliche Automatik)."""
+
+    def setUp(self):
+        from make_sample_plist import folder, leaf
+        self.tmp = tempfile.TemporaryDirectory()
+        self.saved = st.BRIDGE_DIR
+        st.BRIDGE_DIR = Path(self.tmp.name) / "bridge"
+        self.path = Path(self.tmp.name) / "Bookmarks.plist"
+        L = lambda t, u: leaf(u, t)
+        video = [
+            L("Piano Jazz Night", "https://www.youtube.com/watch?v=1"),
+            L("Piano Jazz for Study", "https://www.youtube.com/watch?v=2"),
+            L("Piano Jazz Classics", "https://vimeo.com/3"),
+            L("Guitar Jazz Session", "https://www.youtube.com/watch?v=4"),
+            L("Guitar Jazz Live", "https://www.youtube.com/watch?v=5"),
+            L("Guitar Jazz Ballads", "https://vimeo.com/6"),
+            L("Python Decorators", "https://www.youtube.com/watch?v=7"),
+            L("Python Asyncio", "https://www.youtube.com/watch?v=8"),
+            L("Python Typing", "https://vimeo.com/9"),
+            L("Wie Vulkane entstehen", "https://www.youtube.com/watch?v=10"),
+        ]
+        self.root = {"Children": [
+            folder("BookmarksBar", [leaf("https://github.com", "GitHub")]),
+            folder("BookmarksMenu", [
+                folder("Video", video + [folder("Eigene Auswahl", [L("Mein Video", "https://x.de/1")])]),
+                folder("Article", [L("Kurz", "https://a.de/1")])])]}
+        self.path.write_bytes(plistlib.dumps(self.root, fmt=plistlib.FMT_BINARY))
+        self.cfg = st.load_config(None)
+
+    def tearDown(self):
+        st.BRIDGE_DIR = self.saved
+        self.tmp.cleanup()
+
+    def test_plan_groups_broad_to_specific(self):
+        opts = {"verschachteln_ab": 6}
+        specs = {s_["ordner"]: s_ for s_ in st.organize_plan(self.root, self.cfg, opts)}
+        self.assertEqual(set(specs), {"Lesezeichenmenü/Video", "Lesezeichenmenü/Article"})
+        paths = sorted(b["pfad"] for b in specs["Lesezeichenmenü/Video"]["baum"])
+        self.assertEqual(paths, ["Jazz/Guitar", "Jazz/Piano", "Python"])
+        self.assertEqual(specs["Lesezeichenmenü/Article"]["baum"], [])   # zu wenige
+
+    def test_organize_applies_rules_sorts_and_undoes(self):
+        before = self.path.read_bytes()
+        entry = st.edit_bookmarks({"organize": {"verschachteln_ab": 6}, "aktion": "Test"},
+                                  self.path)
+        root = plistlib.loads(self.path.read_bytes())
+        video = next(c for c in root["Children"][1]["Children"] if c["Title"] == "Video")
+        names = [c.get("Title") or st._leaf_title(c) for c in video["Children"]]
+        # Unterordner alphabetisch zuerst (inkl. eigener), dann das Einzelstück
+        self.assertEqual(names, ["Eigene Auswahl", "Jazz", "Python", "Wie Vulkane entstehen"])
+        jazz = next(c for c in video["Children"] if c.get("Title") == "Jazz")
+        self.assertEqual([c["Title"] for c in jazz["Children"]], ["Guitar", "Piano"])
+        for f in st.collect_folders(root):
+            self.assertFalse(st.is_generic_name(f.title), f.path)
+        # Favoriten-Leiste und Reihenfolge der Hauptordner unverändert
+        self.assertEqual([c["Title"] for c in root["Children"][1]["Children"]], ["Video", "Article"])
+        self.assertEqual(root["Children"][0], self.root["Children"][0])
+        # rückgängig → exakt wie vorher
+        st.edit_bookmarks(st.undo_change_for(entry), self.path)
+        self.assertEqual(plistlib.loads(self.path.read_bytes()), plistlib.loads(before))
+
+    def test_generic_and_small_groups_never_created(self):
+        from make_sample_plist import folder, leaf
+        items = [leaf(f"https://s.de/{i}", f"Sonstiges Video {i}") for i in range(4)] + \
+                [leaf(f"https://t.de/{i}", f"Teil {i} Doku") for i in range(2)]
+        root = {"Children": [folder("BookmarksMenu", [folder("Video", items)])]}
+        spec = st.organize_plan(root, self.cfg)[0]
+        names = {b["pfad"] for b in spec["baum"]}
+        self.assertNotIn("Sonstiges", names)
+        self.assertFalse(any(st.is_generic_name(n) for n in names))
+
+    def test_preview_does_not_change(self):
+        prev = st.describe_organize(self.root, self.cfg, {"verschachteln_ab": 6})
+        self.assertEqual(prev[0]["ordner"], "Lesezeichenmenü/Video")
+        self.assertIn("Lesezeichenmenü/Video/Jazz/Piano", prev[0]["neue_unterordner"])
+        self.assertEqual(plistlib.loads(self.path.read_bytes()), self.root)
 
 
 if __name__ == "__main__":

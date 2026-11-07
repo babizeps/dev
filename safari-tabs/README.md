@@ -88,7 +88,7 @@ Zum Eintragen beendet das Tool Safari kurz (sonst würde Safari die Änderung ü
 | `--json` | Analyse als JSON ausgeben |
 | `--nur-mac` | Tabs von iPhone/iPad (iCloud) nicht einbeziehen |
 | `--sortieren ORDNER` | Ordner smart sortieren (Unterordner zuerst, dann nach Website/Titel) |
-| `--auto-installieren` | Automatik einrichten (`--haeufigkeit taeglich/woechentlich`, `--inaktiv-minuten 15`, `--gespeicherte-schliessen`) |
+| `--auto-installieren` | Automatik einrichten (`--haeufigkeit monatlich/woechentlich/taeglich`, Standard monatlich; ordnet dabei auch alles in Unterordner, `--inaktiv-minuten 15`, `--gespeicherte-schliessen`) |
 | `--auto-status` / `--auto-entfernen` | Automatik prüfen / ausschalten |
 | `--auto -n` | Probelauf: zeigt, was die Automatik jetzt tun würde |
 | `--rueckgaengig` | letzte Speicherung rückgängig machen (nur deren Lesezeichen) |

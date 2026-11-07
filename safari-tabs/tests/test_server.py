@@ -109,7 +109,7 @@ class ServerSessionTest(unittest.TestCase):
         ])
         self.assertEqual([r["id"] for r in res], [1, 2, 3, 4, 5])
         self.assertEqual(res[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(res[1]["result"]["tools"]), 15)
+        self.assertEqual(len(res[1]["result"]["tools"]), 16)
         self.assertEqual([p["name"] for p in res[2]["result"]["prompts"]],
                          ["tabs-aufraeumen", "unterordner-erstellen", "automatik",
                           "lesezeichen-korrigieren"])

@@ -30,7 +30,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.8.0"
+SERVER_VERSION = "1.9.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -510,19 +510,30 @@ def tool_sort(args: Dict) -> Dict:
 
 def tool_auto_setup(args: Dict) -> Dict:
     opts = {k: args.get(k) for k in ("haeufigkeit", "inaktiv_minuten",
-                                     "gespeicherte_schliessen", "min_score")}
+                                     "gespeicherte_schliessen", "min_score", "ordnen")}
     res = st.install_automation(opts)
     res["hinweis"] = (
         "Die Automatik prüft stündlich im Hintergrund und räumt auf, wenn sie fällig ist und "
-        "der Mac gerade nicht benutzt wird. Sie schließt nur eindeutig überflüssige Tabs und "
-        "speichert nur Tabs mit sicherer Zuordnung in vorhandene Ordner – keine neuen Ordner, "
-        "keine Umstrukturierung. Alles andere bleibt offen und steht im Bericht. macOS fragt "
-        "gleich, ob Python Safari steuern darf → erlauben.")
+        "der Mac gerade nicht benutzt wird. Sie schließt eindeutig überflüssige Tabs, "
+        "speichert Tabs mit sicherer Zuordnung und ordnet (wenn ordnen=true) alle Ordner: "
+        "lose Lesezeichen kommen in thematische Unterordner nach den Regeln (breit → "
+        "spezifisch, ≥ 2 Einträge, keine Sammelnamen), alles wird sortiert. Eigene "
+        "Unterordner und die Reihenfolge der Hauptordner bleiben. Unsichere Tabs bleiben "
+        "offen und stehen im Bericht. Jeder Lauf ist rückgängig machbar. macOS fragt gleich, "
+        "ob Python Safari steuern darf → erlauben.")
     return res
 
 
 def tool_auto_status(_: Dict) -> Dict:
     return st.automation_status()
+
+
+def tool_auto_preview(_: Dict) -> Dict:
+    root = _read_root()
+    cfg = st.load_config(None)
+    return {"wuerde_ordnen": st.describe_organize(root, cfg),
+            "hinweis": ("Vorschau für die vorhandenen Lesezeichen (ändert nichts). Beim Lauf "
+                        "kommen eindeutig zuordenbare Tabs dazu und werden mit eingeordnet.")}
 
 
 def tool_auto_off(_: Dict) -> Dict:
@@ -534,13 +545,17 @@ TOOLS = {
         "fn": tool_auto_setup,
         "description": (
             "Richtet die regelmäßige, selbständige Aufräum-Automatik ein (macOS-Hintergrunddienst). "
-            "Sie läuft täglich oder wöchentlich, aber nur wenn der Mac eine Weile nicht benutzt "
-            "wird, schließt eindeutig überflüssige Tabs (Duplikate, leere Tabs, Suchergebnisse, "
-            "Login-/Fehlerseiten, schon Gespeichertes) und speichert Tabs mit sicherer Zuordnung "
-            "in vorhandene Ordner. Legt keine Ordner an. Bericht + Mitteilung nach jedem Lauf, "
-            "jede Änderung rückgängig machbar. Nur nach Zustimmung des Nutzers einrichten."),
+            "Sie läuft monatlich (oder wöchentlich/täglich), aber nur wenn der Mac eine Weile nicht "
+            "benutzt wird: schließt eindeutig überflüssige Tabs, speichert Tabs mit sicherer "
+            "Zuordnung und ordnet alles – lose Lesezeichen in thematische, verschachtelte "
+            "Unterordner (breit → spezifisch, ≥ 2 Einträge, keine Sammelnamen) und sortiert. "
+            "Bericht + Mitteilung nach jedem Lauf, jeder Lauf rückgängig machbar. Nur nach "
+            "Zustimmung des Nutzers einrichten."),
         "inputSchema": {"type": "object", "properties": {
-            "haeufigkeit": {"type": "string", "enum": ["taeglich", "woechentlich"]},
+            "haeufigkeit": {"type": "string", "enum": ["monatlich", "woechentlich", "taeglich"],
+                            "description": "Standard: monatlich"},
+            "ordnen": {"type": "boolean",
+                       "description": "bei jedem Lauf alles ordnen: Unterordner bilden und sortieren (Standard true)"},
             "inaktiv_minuten": {"type": "integer",
                                 "description": "nur laufen, wenn der Mac so lange unbenutzt ist (Standard 15)"},
             "gespeicherte_schliessen": {"type": "boolean",
@@ -548,6 +563,13 @@ TOOLS = {
             "min_score": {"type": "number",
                           "description": "Mindest-Sicherheit der Ordner-Zuordnung (Standard 10)"}}},
         "annotations": {"title": "Automatik einrichten", "destructiveHint": False},
+    },
+    "safari_automatik_vorschau": {
+        "fn": tool_auto_preview,
+        "description": ("Zeigt, welche Unterordner die Automatik beim nächsten Lauf anlegen und "
+                        "wie viele Lesezeichen sie verschieben würde. Ändert nichts."),
+        "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {"title": "Automatik-Vorschau", "readOnlyHint": True},
     },
     "safari_automatik_status": {
         "fn": tool_auto_status,
@@ -777,7 +799,7 @@ Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Zugri
 
 Unterordner: Passen in einen Ordner viele Tabs zu verschiedenen Themen, biete an, mit `safari_unterordner_vorschlagen` eine verschachtelte Struktur (höchstens 3 Ebenen) für Tabs und vorhandene Lesezeichen zu entwerfen; zeig sie als Baum und wende sie nach meinem OK mit `safari_ordnerstruktur_anwenden` an.
 
-Automatik: Auf Wunsch richte ich mit `safari_automatik_einrichten` ein regelmäßiges, selbständiges Aufräumen ein (täglich/wöchentlich, nur wenn der Mac unbenutzt ist). Erkläre vorher kurz, was sie automatisch tut und was nicht (keine neuen Ordner, Unsicheres bleibt offen), und richte sie erst nach OK ein. Hat die Automatik Tabs „zur Prüfung“ übrig gelassen (`safari_automatik_status`), biete an, diese jetzt gemeinsam einzusortieren.
+Automatik: Auf Wunsch richte ich mit `safari_automatik_einrichten` ein regelmäßiges, selbständiges Aufräumen und Ordnen ein (Standard monatlich, nur wenn der Mac unbenutzt ist). Erkläre vorher kurz, was sie automatisch tut (überflüssige Tabs schließen, sicher Zuordenbares speichern, alles in Unterordner ordnen und sortieren – Unsicheres bleibt offen), zeig die `safari_automatik_vorschau` und richte sie erst nach OK ein. Hat die Automatik Tabs „zur Prüfung“ übrig gelassen (`safari_automatik_status`), biete an, diese jetzt gemeinsam einzusortieren.
 
 Korrekturen: Ist etwas falsch eingetragen, nutze `safari_lesezeichen_verlauf` bzw. `safari_lesezeichen_suchen`, zeig mir genau, was entfernt würde, und entferne es nach meinem OK mit `safari_lesezeichen_entfernen` (für die ganze letzte Änderung – auch Umstrukturierungen und Sortierungen: `safari_rueckgaengig`). Danach trägst du – wieder nach OK – die richtigen Einträge mit `safari_lesezeichen_speichern` ein (dafür vorher `safari_tabs_ueberblick` aufrufen). Eine Sicherung zurückspielen (`safari_sicherung_zurueckspielen`) nur, wenn gezieltes Entfernen nicht reicht. Prüfe nach dem Entfernen nach etwa einer Minute mit `safari_lesezeichen_suchen`, ob iCloud die Einträge zurückgebracht hat."""
 
@@ -817,11 +839,16 @@ PROMPTS = {
             "Antworte auf Deutsch.\n"
             "1. Rufe `safari_automatik_status` auf.\n"
             "2. Erkläre kurz: Die Automatik läuft im Hintergrund, nur wenn mein Mac eine Weile "
-            "unbenutzt ist; sie schließt nur eindeutig überflüssige Tabs, speichert nur Tabs mit "
-            "sicherer Zuordnung in vorhandene Ordner, legt keine Ordner an; Unsicheres bleibt "
-            "offen; nach jedem Lauf gibt es eine Mitteilung und einen Bericht; alles ist "
-            "rückgängig machbar. Safari wird zum Speichern kurz beendet.\n"
-            "3. Frag mich: täglich oder wöchentlich? Gespeicherte Tabs danach schließen?\n"
+            "unbenutzt ist; sie schließt eindeutig überflüssige Tabs, speichert Tabs mit sicherer "
+            "Zuordnung und ordnet alles: lose Lesezeichen kommen in thematische, verschachtelte "
+            "Unterordner (breit → spezifisch, mindestens 2 Einträge, keine Sammelnamen), alle "
+            "Ordner werden sortiert; meine eigenen Unterordner und die Reihenfolge meiner "
+            "Hauptordner bleiben. Unsichere Tabs bleiben offen. Nach jedem Lauf gibt es eine "
+            "Mitteilung und einen Bericht; jeder Lauf ist rückgängig machbar. Safari wird dafür "
+            "kurz beendet.\n"
+            "3. Zeig mir mit `safari_automatik_vorschau`, was der erste Lauf ordnen würde. Frag "
+            "mich: monatlich (Standard), wöchentlich oder täglich? Gespeicherte Tabs danach "
+            "schließen?\n"
             "4. Erst nach meinem OK `safari_automatik_einrichten` und sag mir, dass macOS gleich "
             "fragt, ob Python Safari steuern darf (erlauben)."),
     },

@@ -1837,6 +1837,154 @@ def restructure_folder(root: Dict, spec: Dict, cfg: Dict) -> Dict:
             "vorher": before, "nachher_hash": _structure_hash(base)}
 
 
+# --- selbständiges Ordnen (ohne Claude): Stichwort-/Website-Gruppen -------------
+ORGANIZE_DEFAULTS = {"min_gruppe": 3, "ab": 6, "max_tiefe": MAX_DEPTH, "verschachteln_ab": 8}
+
+
+def _label_for_word(word: str, titles: List[str]) -> str:
+    forms: Dict[str, int] = {}
+    for t in titles:
+        for m in re.finditer(r"[^\W_][\w+#-]*", t or ""):
+            if m.group(0).casefold() == word:
+                forms[m.group(0)] = forms.get(m.group(0), 0) + 1
+    best = max(forms.items(), key=lambda x: (x[1], x[0][:1].isupper()))[0] if forms else word
+    return best if best[:1].isupper() or best.isupper() else best[:1].upper() + best[1:]
+
+
+def _site_label(host: str) -> str:
+    name = _domain(host).split(".")[0]
+    return name[:1].upper() + name[1:] if name else ""
+
+
+def cluster_items(items: List[Dict], used: set, depth: int, opts: Dict) -> Tuple[List[Dict], List[Dict]]:
+    """Greedy-Gruppierung nach gemeinsamen Titelwörtern bzw. Websites.
+    items: [{id, titel, host, words}] → (Gruppen [{name, items, kinder}], Rest)."""
+    min_size = opts["min_gruppe"]
+    groups: List[Dict] = []
+    remaining = list(items)
+    names_used = {u.casefold() for u in used}
+    site_total: Dict[str, int] = {}
+    for it in items:
+        k = _site_label(it["host"]).casefold()
+        site_total[k] = site_total.get(k, 0) + 1
+    while True:
+        cand: Dict[Tuple[str, str], List[Dict]] = {}
+        for it in remaining:
+            for w in it["words"]:
+                if w not in used:
+                    cand.setdefault(("w", w), []).append(it)
+            site = _site_label(it["host"])
+            if site and site.casefold() not in names_used:
+                cand.setdefault(("s", site.casefold()), []).append(it)
+        best = None
+        for (kind, key), members in cand.items():
+            n = len(members)
+            if n < min_size or n >= len(items):          # alles in einer Gruppe = nichts gewonnen
+                continue
+            if kind == "s" and site_total[key] > 0.5 * len(items):  # Website prägt den Ordner
+                continue
+            label = (_label_for_word(key, [m["titel"] for m in members]) if kind == "w"
+                     else _site_label(members[0]["host"]))
+            if is_generic_name(label) or label.casefold() in names_used or len(label) < 2:
+                continue
+            score = (kind == "w", n)                     # Thema vor Website
+            if best is None or score > best[0]:
+                best = (score, kind, key, label, members)
+        if not best:
+            break
+        _, kind, key, label, members = best
+        ids = {id(m) for m in members}
+        remaining = [r for r in remaining if id(r) not in ids]
+        names_used.add(label.casefold())
+        groups.append({"name": label, "items": members, "key": key, "kinder": [], "rest": members})
+    for g in groups:
+        if depth < opts["max_tiefe"] and len(g["items"]) >= opts["verschachteln_ab"]:
+            kids, rest = cluster_items(g["items"], used | {g["key"]}, depth + 1, opts)
+            # von breit zu spezifisch: nur mit mindestens zwei Untergruppen
+            if len(kids) >= 2:
+                g["kinder"], g["rest"] = kids, rest
+    return groups, remaining
+
+
+def _baum_from_groups(groups: List[Dict], prefix: str) -> List[Dict]:
+    out = []
+    for g in groups:
+        path = f"{prefix}/{g['name']}" if prefix else g["name"]
+        if g["rest"]:
+            out.append({"pfad": path, "ids": [m["id"] for m in g["rest"]]})
+        out += _baum_from_groups(g["kinder"], path)
+    return out
+
+
+def organize_plan(root: Dict, cfg: Dict, opts: Optional[Dict] = None) -> List[Dict]:
+    """Specs für restructure_folder: pro Hauptordner (unter Favoriten/Lesezeichenmenü
+    oder auf oberster Ebene) werden lose Lesezeichen – im Ordner selbst und in seinen
+    vorhandenen Unterordnern – in neue, thematische Unterordner gruppiert."""
+    opts = {**ORGANIZE_DEFAULTS, **(opts or {})}
+    tops: List[Tuple[Dict, str]] = []
+    for c in root.get("Children", []) or []:
+        if c.get("WebBookmarkType") != "WebBookmarkTypeList" or c.get("Title") in SKIP_TITLES:
+            continue
+        if c.get("Title") in SPECIAL_TITLES:
+            for cc in c.get("Children", []) or []:
+                if cc.get("WebBookmarkType") == "WebBookmarkTypeList":
+                    tops.append((cc, f"{SPECIAL_TITLES[c['Title']]}/{_node_title(cc)}"))
+        else:
+            tops.append((c, _node_title(c)))
+    specs = []
+    for node, path in tops:
+        baum: List[Dict] = []
+
+        def visit(n: Dict, rel: str, depth: int) -> None:
+            leaves = [c for c in n.get("Children", []) or []
+                      if c.get("WebBookmarkType") == "WebBookmarkTypeLeaf"]
+            subs = [c for c in n.get("Children", []) or []
+                    if c.get("WebBookmarkType") == "WebBookmarkTypeList"]
+            if len(leaves) >= opts["ab"] and depth < opts["max_tiefe"]:
+                used = set()
+                for part in [path] + ([rel] if rel else []):
+                    used |= _tokens(part.replace("/", " "))
+                used |= {_node_title(s_).casefold() for s_ in subs}
+                items = [{"id": l.get("WebBookmarkUUID"), "titel": _leaf_title(l),
+                          "host": urlsplit(l.get("URLString", "")).hostname or "",
+                          "words": _title_words(_leaf_title(l))} for l in leaves
+                         if l.get("WebBookmarkUUID")]
+                local = dict(opts, max_tiefe=opts["max_tiefe"] - depth)
+                groups, _ = cluster_items(items, used, 1, local)
+                baum.extend(_baum_from_groups(groups, rel))
+            for s_ in subs:
+                visit(s_, f"{rel}/{_node_title(s_)}" if rel else _node_title(s_), depth + 1)
+        visit(node, "", 0)
+        specs.append({"ordner": path, "baum": baum, "sortieren": True, "leere_entfernen": False})
+    return specs
+
+
+def organize_all(root: Dict, cfg: Dict, opts: Optional[Dict] = None) -> List[Dict]:
+    results = []
+    for spec in organize_plan(root, cfg, opts):
+        try:
+            results.append(restructure_folder(root, spec, cfg))
+        except StructureError:
+            # Gruppen verletzen eine Regel → diesen Ordner nur sortieren
+            results.append(restructure_folder(root, dict(spec, baum=[]), cfg))
+    return results
+
+
+def describe_organize(root: Dict, cfg: Dict, opts: Optional[Dict] = None) -> List[Dict]:
+    """Vorschau (ändert nichts): neue Unterordner und Anzahl je Ordner."""
+    trial = copy.deepcopy(root)
+    out = []
+    for r in organize_all(trial, cfg, opts):
+        counts: Dict[str, int] = {}
+        for m in r["verschoben"]:
+            counts[m["nach"]] = counts.get(m["nach"], 0) + 1
+        if r["ordner_neu"] or counts:
+            out.append({"ordner": r["ordner"],
+                        "neue_unterordner": [o["titel"] for o in r["ordner_neu"]],
+                        "verschiebungen": counts})
+    return out
+
+
 def restore_folder_snapshot(root: Dict, snap: Dict, force: bool = False) -> str:
     node = _find_by_uuid(root, snap["ordner_id"]) if snap.get("ordner_id") else None
     if node is None:
@@ -1890,6 +2038,9 @@ def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
     shutil.copy2(path, backup)
     entry["sicherung"] = backup.name
     log: Dict = {"hinzugefuegt": [], "ordner_neu": []}
+    for snap in change.get("snapshot_restore", []):
+        restore_folder_snapshot(root, snap, change.get("force", False))
+        entry["aktion"] = entry["aktion"] or "Ordnerstruktur rückgängig gemacht"
     if change.get("add"):
         tabs = [Tab(window=0, index=0, title=d["title"], url=d["url"], action=BOOKMARK,
                     target_key=d.get("target_key", ""), target_path=d["target_path"],
@@ -1911,6 +2062,10 @@ def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
         log["hinzugefuegt"] += res["hinzugefuegt"]
         log["ordner_neu"] += res["ordner_neu"]
         entry["aktion"] = entry["aktion"] or "Ordnerstruktur angelegt"
+    if change.get("organize") is not None:
+        for res in organize_all(root, cfg, change["organize"]):
+            entry.setdefault("umstrukturiert", []).append(res)
+        entry["aktion"] = entry["aktion"] or "Alles geordnet"
     for name in change.get("sort", []):
         node = _index_nodes(root).get(name)
         if node is None:
@@ -1921,9 +2076,6 @@ def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
         snap["nachher_hash"] = _structure_hash(node)
         entry.setdefault("umstrukturiert", []).append(snap)
         entry["aktion"] = entry["aktion"] or f"„{name}“ sortiert"
-    for snap in change.get("snapshot_restore", []):
-        restore_folder_snapshot(root, snap, change.get("force", False))
-        entry["aktion"] = entry["aktion"] or "Ordnerstruktur rückgängig gemacht"
     entry.update(log)
     tmp = path.with_suffix(".plist.tmp")
     with open(tmp, "wb") as fh:
@@ -2359,7 +2511,8 @@ def default_export_path() -> Path:
 # --------------------------------------------------------------------------
 AUTO_LABEL = "com.safari-tabs.automatik"
 AUTO_DEFAULTS: Dict = {
-    "haeufigkeit": "taeglich",       # taeglich | woechentlich
+    "haeufigkeit": "monatlich",      # taeglich | woechentlich | monatlich
+    "ordnen": True,                  # alles ordnen: lose Lesezeichen in Unterordner, sortieren
     "inaktiv_minuten": 15,           # nur laufen, wenn Mac so lange nicht benutzt wurde
     "schliessen": True,              # eindeutig überflüssige Tabs schließen
     "speichern": True,               # Tabs mit sicherer Ordner-Zuordnung speichern
@@ -2370,6 +2523,9 @@ AUTO_DEFAULTS: Dict = {
 # nur diese Gründe gelten als eindeutig überflüssig
 AUTO_SAFE_CLOSE = ("leerer Tab", "Duplikat", "auch am Mac", "auch auf", "Suchergebnis",
                    "Login-", "Fehlerseite", "schon gespeichert", "schon als Lesezeichen")
+
+
+FREQ_LABEL = {"taeglich": "täglich", "woechentlich": "wöchentlich", "monatlich": "monatlich"}
 
 
 def _auto_file() -> Path:
@@ -2414,8 +2570,11 @@ def auto_due(state: Dict, now: Optional[_dt.datetime] = None) -> bool:
         last_d = _dt.datetime.fromisoformat(last)
     except ValueError:
         return True
-    if state["einstellungen"].get("haeufigkeit") == "woechentlich":
+    freq = state["einstellungen"].get("haeufigkeit")
+    if freq == "woechentlich":
         return (now - last_d).days >= 7
+    if freq == "monatlich":
+        return (now.year, now.month) > (last_d.year, last_d.month)
     return now.date() > last_d.date()
 
 
@@ -2443,7 +2602,8 @@ def notify(title: str, text: str) -> None:
                    capture_output=True)
 
 
-def _auto_report(close: List[Tab], save: List[Tab], review: List[Tab], result: Dict) -> Path:
+def _auto_report(close: List[Tab], save: List[Tab], review: List[Tab], result: Dict,
+                 organized: Optional[List[Dict]] = None) -> Path:
     d = BRIDGE_DIR / "berichte"
     d.mkdir(parents=True, exist_ok=True)
     out = d / f"{_dt.datetime.now():%Y-%m-%d_%H%M}.md"
@@ -2454,6 +2614,13 @@ def _auto_report(close: List[Tab], save: List[Tab], review: List[Tab], result: D
     if save:
         lines += [f"## Gespeichert ({len(save)})", ""] + \
                  [f"- [{t.title or t.url}]({t.url}) → {t.target_path}" for t in save] + [""]
+    if organized:
+        lines += ["## Geordnet", ""]
+        for r in organized:
+            lines.append(f"- **{r['ordner']}**: {len(r['verschoben'])} Lesezeichen in Unterordner"
+                         + (" · neu: " + ", ".join(o["titel"][len(r["ordner"]) + 1:]
+                                                   for o in r["ordner_neu"]) if r["ordner_neu"] else ""))
+        lines += ["", "Alle Ordner sind sortiert (Unterordner alphabetisch, dann Website/Titel).", ""]
     if review:
         lines += [f"## Zur Prüfung – bleiben offen ({len(review)})",
                   "In Claude: „Räum meine Safari-Tabs auf“ ordnet diese mit dir zusammen ein.", ""] + \
@@ -2489,7 +2656,7 @@ def run_auto(dry_run: bool = False, force: bool = False) -> int:
         state["berechtigt"] = True
         save_auto_state(state)
         notify("Safari-Tabs Automatik", "Eingerichtet – läuft ab jetzt "
-               + ("wöchentlich." if opts["haeufigkeit"] == "woechentlich" else "täglich."))
+               + FREQ_LABEL.get(opts["haeufigkeit"], opts["haeufigkeit"]) + ".")
         print(f"{stamp} Berechtigungen ok")
         if not force:
             return 0
@@ -2530,15 +2697,23 @@ def run_auto(dry_run: bool = False, force: bool = False) -> int:
             print(f"  ★ {t.title or t.url}  → {t.target_path}")
         for t in review:
             print(f"  ? {t.title or t.url}" + (f"  (Vorschlag {t.target_path})" if t.target_path else ""))
+        if opts.get("ordnen"):
+            for o in describe_organize(root, cfg):
+                print(f"  ▸ {o['ordner']}: neue Unterordner "
+                      + ", ".join(p.split('/')[-1] for p in o["neue_unterordner"]))
         return 0
 
     closed = 0
     if close:
         closed = close_tabs(close)["closed"]
     result: Dict = {}
-    if save:
-        result = apply_bookmark_change({"add": [_tab_to_dict(t) for t in save],
-                                        "aktion": "Automatik: Lesezeichen gespeichert"})
+    if save or opts.get("ordnen"):
+        change: Dict = {"add": [_tab_to_dict(t) for t in save],
+                        "aktion": "Automatik: " + ("Tabs gespeichert und alles geordnet"
+                                                   if opts.get("ordnen") else "Lesezeichen gespeichert")}
+        if opts.get("ordnen"):
+            change["organize"] = {}
+        result = apply_bookmark_change(change)
         if not result.get("ok"):
             print(f"{stamp} Speichern fehlgeschlagen: {result.get('fehler')}")
             notify("Safari-Tabs Automatik", f"Speichern fehlgeschlagen: {result.get('fehler')}")
@@ -2547,14 +2722,19 @@ def run_auto(dry_run: bool = False, force: bool = False) -> int:
             keys = {normalize_url(t.url) for t in save if not t.remote}
             closed += close_tabs([c for c in read_safari_tabs()
                                   if normalize_url(c.url) in keys])["closed"]
-    report = _auto_report(close, save, review, result)
+    organized = [r for r in result.get("umstrukturiert", []) if r.get("ordner_neu") or r.get("verschoben")]
+    report = _auto_report(close, save, review, result, organized)
     state["letzter_lauf"] = _dt.datetime.now().isoformat(timespec="seconds")
     state["letztes_ergebnis"] = {"geschlossen": closed, "gespeichert": len(save),
-                                 "zur_pruefung": len(review), "bericht": str(report)}
+                                 "zur_pruefung": len(review), "bericht": str(report),
+                                 "geordnet": sum(len(r["verschoben"]) for r in organized),
+                                 "neue_unterordner": sum(len(r["ordner_neu"]) for r in organized)}
     save_auto_state(state)
-    if opts.get("benachrichtigen") and (closed or save or review):
+    moved = state["letztes_ergebnis"]["geordnet"]
+    if opts.get("benachrichtigen") and (closed or save or review or moved):
         notify("Safari-Tabs aufgeräumt",
-               f"{closed} geschlossen · {len(save)} gespeichert · {len(review)} zur Prüfung")
+               f"{closed} geschlossen · {len(save)} gespeichert · {moved} einsortiert · "
+               f"{len(review)} zur Prüfung")
     print(f"{stamp} fertig: {closed} geschlossen, {len(save)} gespeichert – Bericht {report}")
     return 0
 
@@ -2565,8 +2745,8 @@ def install_automation(opts: Optional[Dict] = None) -> Dict:
     state = load_auto_state()
     state["einstellungen"].update({k: v for k, v in (opts or {}).items()
                                    if k in AUTO_DEFAULTS and v is not None})
-    if state["einstellungen"]["haeufigkeit"] not in ("taeglich", "woechentlich"):
-        raise ValueError("haeufigkeit muss taeglich oder woechentlich sein")
+    if state["einstellungen"]["haeufigkeit"] not in ("taeglich", "woechentlich", "monatlich"):
+        raise ValueError("haeufigkeit muss taeglich, woechentlich oder monatlich sein")
     state.pop("berechtigt", None)
     save_auto_state(state)
     # stabile Kopie des Programms, unabhängig von Updates/Ort der Erweiterung
@@ -2673,7 +2853,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="Automatik einrichten (läuft im Hintergrund)")
     ap.add_argument("--auto-entfernen", action="store_true", help="Automatik ausschalten")
     ap.add_argument("--auto-status", action="store_true", help="Status der Automatik")
-    ap.add_argument("--haeufigkeit", choices=["taeglich", "woechentlich"],
+    ap.add_argument("--haeufigkeit", choices=["taeglich", "woechentlich", "monatlich"],
                     help="mit --auto-installieren")
     ap.add_argument("--inaktiv-minuten", type=int, help="mit --auto-installieren")
     ap.add_argument("--gespeicherte-schliessen", action="store_true",
@@ -2691,7 +2871,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                                   "inaktiv_minuten": args.inaktiv_minuten,
                                   "gespeicherte_schliessen": args.gespeicherte_schliessen or None})
         e = res["einstellungen"]
-        print(f"✓ Automatik eingerichtet ({'wöchentlich' if e['haeufigkeit'] == 'woechentlich' else 'täglich'}, "
+        print(f"✓ Automatik eingerichtet ({FREQ_LABEL[e['haeufigkeit']]}, "
               f"wenn der Mac {e['inaktiv_minuten']} Min. nicht benutzt wird).\n"
               f"  Protokoll: {res['log']}\n  Bitte die macOS-Abfragen (Safari steuern) erlauben.")
         return 0

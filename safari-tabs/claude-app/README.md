@@ -81,17 +81,20 @@ Verletzt ein Vorschlag eine Regel, wird **nichts geändert**. Claude bessert den
 - **Sortiert:** Unterordner zuerst und alphabetisch (Sammelordner, die du schon hast, ganz unten), dann die Lesezeichen nach Website und Titel. „Sortier meinen Ordner Article“ geht auch einzeln.
 - **„Mach das rückgängig“** setzt den ganzen Ordner auf den Stand davor zurück. Hast du den Ordner inzwischen selbst geändert, fragt Claude vorher nach.
 
-## Automatisch aufräumen
+## Automatisch aufräumen und ordnen (monatlich)
 
-Schreib „Räum meine Tabs regelmäßig automatisch auf“ oder nimm den Befehl **automatik**. Claude fragt nach Häufigkeit (täglich/wöchentlich) und ob gespeicherte Tabs danach geschlossen werden sollen, und richtet einen Hintergrunddienst auf deinem Mac ein.
+Schreib „Ordne meine Tabs und Lesezeichen jeden Monat automatisch“ oder nimm den Befehl **automatik**. Claude zeigt dir eine Vorschau, was der erste Lauf ordnen würde, fragt nach Häufigkeit (Standard: **monatlich**, auch wöchentlich/täglich) und richtet nach deinem OK einen Hintergrunddienst auf deinem Mac ein.
 
-- **Wann:** Der Dienst prüft stündlich. Er räumt aber nur auf, wenn er fällig ist **und** du den Mac seit mindestens 15 Minuten nicht benutzt. So wird Safari nie mitten in deiner Arbeit beendet.
-- **Was automatisch passiert:** Er schließt nur eindeutig überflüssige Tabs (Duplikate, leere Tabs, Suchergebnisse, Login- und Fehlerseiten, schon Gespeichertes) und speichert nur Tabs mit **sicherer** Zuordnung in **vorhandene** Ordner.
-- **Was nicht automatisch passiert:** Er legt keine neuen Ordner an und strukturiert nichts um. Alles Unsichere bleibt offen und steht im Bericht unter „Zur Prüfung“. Das sortierst du bei Gelegenheit mit Claude ein.
-- **Danach:** Du bekommst eine Mitteilung („8 geschlossen · 5 gespeichert · 3 zur Prüfung“) und einen Bericht in `~/.safari-tabs/berichte/`. Mit „mach das rückgängig“ nimmst du den letzten Lauf zurück.
-- **Status / Ausschalten:** „Wie steht's mit der Automatik?“ oder „Schalte die Automatik aus“.
+- **Wann:** Der Dienst prüft stündlich. Er läuft aber nur, wenn er fällig ist (einmal im Monat) **und** du den Mac seit mindestens 15 Minuten nicht benutzt. Safari wird also nie mitten in deiner Arbeit beendet.
+- **Tabs:** Eindeutig überflüssige Tabs werden geschlossen (Duplikate, leere Tabs, Suchergebnisse, Login- und Fehlerseiten, schon Gespeichertes). Tabs mit sicherer Zuordnung werden gespeichert. Unsichere Tabs bleiben offen und stehen im Bericht.
+- **Alles ordnen:** Lose Lesezeichen in deinen Ordnern kommen in thematische Unterordner, zum Beispiel `Video → Jazz, Lofi, Python`, bei vielen Einträgen auch verschachtelt (`Jazz → Piano, Guitar`). Danach wird alles sortiert. Es gelten dieselben Regeln wie sonst: von breit zu spezifisch, keine Sammelnamen. Zusätzlich ist die Automatik etwas strenger und bildet neue Gruppen erst ab 3 Einträgen. Einzelstücke bleiben direkt im Ordner.
+- **Unangetastet bleiben:** Unterordner, die du selbst angelegt hast (es werden höchstens lose Lesezeichen darin weiter gruppiert), die Reihenfolge deiner Hauptordner und die Favoritenleiste.
+- **Danach:** Du bekommst eine Mitteilung („8 geschlossen · 5 gespeichert · 23 einsortiert · 3 zur Prüfung“) und einen Bericht in `~/.safari-tabs/berichte/`. „Mach das rückgängig“ setzt den ganzen Lauf exakt zurück.
+- **Status / Vorschau / Ausschalten:** „Wie steht's mit der Automatik?“, „Was würde die Automatik ordnen?“, „Schalte die Automatik aus“.
 
-Beim Einrichten fragt macOS, ob **Python** Safari steuern darf: erlauben. Für den Zugriff auf die Lesezeichen gilt dasselbe wie sonst: Hat Python keinen Festplattenvollzugriff, öffnet sich kurz ein Terminal-Fenster.
+Die Automatik gruppiert ohne Claude, also anhand gemeinsamer Wörter in den Titeln. Feinere Namen oder eine bessere Struktur bekommst du jederzeit im Chat mit „Mach passende Unterordner für Video“.
+
+Beim Einrichten fragt macOS, ob **Python** Safari steuern darf: erlauben. Hat Python keinen Festplattenvollzugriff, öffnet sich beim Lauf kurz ein Terminal-Fenster.
 
 ## Fehler korrigieren
 
