@@ -228,15 +228,18 @@ class TerminalBridgeTest(unittest.TestCase):
 
         t = st.Tab(0, 0, "Lasagne", "https://www.chefkoch.de/rezepte/1/lasagne.html")
         st.set_new_target(t, "Kochen")
-        res = st.run_via_terminal("apply", {"tabs": [st._tab_to_dict(t)]})
-        self.assertEqual(res["result"], {"Kochen": 1})
+        res = st.run_via_terminal("edit", {"add": [st._tab_to_dict(t)]})
+        self.assertEqual(res["ergebnis"], {"Kochen": 1})
+        self.assertEqual(len(res["hinzugefuegt"]), 1)
+        listed = st.run_via_terminal("list")["sicherungen"]
+        self.assertTrue(listed[0]["name"].startswith("Bookmarks.plist.backup-"))
         new = plistlib.loads(st.BOOKMARKS_PLIST.read_bytes())
         kochen = next(c for c in new["Children"] if c.get("Title") == "Kochen")
         self.assertEqual(len(kochen["Children"]), 1)
         self.assertTrue(list(st.BOOKMARKS_PLIST.parent.glob("Bookmarks.plist.backup-*")))
         # Skript ruft dieselbe Python-Datei auf, Austauschdateien sind aufgeräumt
         self.assertIn(str(Path(st.__file__).resolve()), Path(self.opened[0]).read_text())
-        self.assertEqual(list(st.BRIDGE_DIR.glob("*.json")), [])
+        self.assertEqual(list(st.BRIDGE_DIR.glob("*.*.json")), [])
 
     def test_terminal_without_access_reports_hint(self):
         orig = st.shutil.copy2
@@ -251,6 +254,101 @@ class TerminalBridgeTest(unittest.TestCase):
             self.assertIn("Terminal", str(cm.exception))
         finally:
             st.shutil.copy2 = orig
+
+class CorrectionTest(unittest.TestCase):
+    """Entfernen, rückgängig machen, Sicherung zurückspielen."""
+
+    def setUp(self):
+        from make_sample_plist import sample, folder, leaf
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.saved = st.BRIDGE_DIR
+        st.BRIDGE_DIR = base / "bridge"
+        self.path = base / "Bookmarks.plist"
+        root = {"Children": [folder("BookmarksBar", []), folder("BookmarksMenu", [
+            folder("Video", [leaf("https://www.youtube.com/watch?v=ok", "Gutes Video")]),
+            folder("Article", [leaf("https://example.com/a", "Artikel A")]),
+            folder("Tool", [leaf("https://example.com/a", "Gleiche URL im Tool-Ordner")]),
+        ])]}
+        self.path.write_bytes(plistlib.dumps(root, fmt=plistlib.FMT_BINARY))
+        self.cfg = st.load_config(None)
+
+    def tearDown(self):
+        st.BRIDGE_DIR = self.saved
+        self.tmp.cleanup()
+
+    def root(self):
+        return plistlib.loads(self.path.read_bytes())
+
+    def urls_in(self, name):
+        return [h["url"] for h in st.search_bookmarks(self.root(), "", name)]
+
+    def add(self, items):
+        tabs = []
+        for title, url, target, new in items:
+            t = st.Tab(0, 0, title, url)
+            if new:
+                st.set_new_target(t, target)
+            else:
+                t.target_key, t.target_path = "", "Lesezeichenmenü/" + target
+            tabs.append(st._tab_to_dict(t))
+        return st.edit_bookmarks({"add": tabs, "aktion": "Test"}, self.path)
+
+    def test_undo_last_save_removes_only_its_bookmarks(self):
+        self.add([("Spy", "https://www.youtube.com/watch?v=spy", "Video", False),
+                  ("WSJ", "https://wsj.com/ai", "Article", False),
+                  ("Neu", "https://neu.example/", "Testordner", True)])
+        self.assertEqual(len(self.urls_in("Video")), 2)
+        entry = st.last_undoable()
+        self.assertEqual(len(entry["hinzugefuegt"]), 3)
+        res = st.edit_bookmarks(st.undo_change_for(entry), self.path)
+        st.mark_undone(entry)
+        self.assertEqual(len(res["entfernt"]), 3)
+        self.assertEqual(self.urls_in("Video"), ["https://www.youtube.com/watch?v=ok"])
+        self.assertEqual(self.urls_in("Article"), ["https://example.com/a"])
+        titles = [c.get("Title") for c in self.root()["Children"]]
+        self.assertNotIn("Testordner", titles)             # leerer, neu angelegter Ordner weg
+        self.assertIsNone(st.last_undoable())
+
+    def test_remove_by_url_only_in_given_folder(self):
+        res = st.edit_bookmarks({"remove": [{"url": "https://example.com/a",
+                                             "ordner": "Article"}]}, self.path)
+        self.assertEqual(len(res["entfernt"]), 1)
+        self.assertEqual(self.urls_in("Article"), [])
+        self.assertEqual(self.urls_in("Tool"), ["https://example.com/a"])
+
+    def test_remove_by_title_and_folder(self):
+        res = st.edit_bookmarks({"remove": [{"titel": "gutes video", "ordner": "Video"}]},
+                                self.path)
+        self.assertEqual([r["titel"] for r in res["entfernt"]], ["Gutes Video"])
+        self.assertTrue(list(self.path.parent.glob("Bookmarks.plist.backup-*")))
+
+    def test_existing_folders_are_never_removed(self):
+        video_id = next(c for c in self.root()["Children"][1]["Children"]
+                        if c["Title"] == "Video")["WebBookmarkUUID"]
+        st.edit_bookmarks({"remove": [{"titel": "Gutes Video", "ordner": "Video"}],
+                           "remove_folder_ids": []}, self.path)
+        self.assertIn("Video", [c["Title"] for c in self.root()["Children"][1]["Children"]])
+        self.assertTrue(video_id)
+
+    def test_restore_backup(self):
+        before = self.path.read_bytes()
+        res = self.add([("Spy", "https://www.youtube.com/watch?v=spy", "Video", False)])
+        backup = res["sicherung"]
+        import time as _t
+        _t.sleep(1.1)                                       # anderer Zeitstempel
+        r = st.edit_bookmarks({"restore": backup}, self.path)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertTrue(r["sicherung"].startswith("Bookmarks.plist.vor-wiederherstellung-"))
+        self.assertTrue((self.path.parent / r["sicherung"]).exists())
+        names = [b["name"] for b in st.list_backups(self.path)]
+        self.assertIn(backup, names)
+
+    def test_restore_rejects_bad_names(self):
+        for bad in ("../../etc/passwd", "Bookmarks.plist", "Bookmarks.plist.backup-x"):
+            with self.assertRaises(ValueError):
+                st.edit_bookmarks({"restore": bad}, self.path)
+
 
 if __name__ == "__main__":
     unittest.main()

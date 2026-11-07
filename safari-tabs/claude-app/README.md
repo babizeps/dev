@@ -54,6 +54,17 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json` eintragen (
 }
 ```
 
+## Fehler korrigieren
+
+Ist etwas im falschen Ordner gelandet, schreib z. B. „Die letzten Lesezeichen waren falsch, mach das rückgängig“ oder „Entferne ‚The AI Future Is for Everyone – WSJ‘ aus Article“ – oder nimm den Befehl **lesezeichen-korrigieren**. Claude kann jetzt:
+
+- **Verlauf zeigen**: was wann in welchen Ordner eingetragen wurde, plus alle Sicherungen,
+- **gezielt entfernen**: einzelne Lesezeichen (per Titel + Ordner, URL oder aus dem Verlauf). Deine Ordner und anderen Lesezeichen bleiben unangetastet,
+- **letzte Speicherung rückgängig machen**: genau die Lesezeichen dieser Speicherung (und dabei neu angelegte, leere Ordner),
+- **Sicherung zurückspielen**: nur wenn nötig. Der aktuelle Stand wird vorher selbst gesichert, damit auch das rückgängig gemacht werden kann.
+
+Vor jedem Entfernen zeigt Claude dir die Liste und wartet auf dein OK. Ist Safari in iCloud eingeschaltet, kann iCloud gelöschte Einträge in seltenen Fällen zurückbringen. Claude prüft das kurz danach, notfalls löschst du sie mit ⌥⌘B in Safari.
+
 ## Probleme?
 
 - **„Terminal hat keinen Festplattenvollzugriff“**: Schalter für Terminal einschalten, Terminal mit ⌘Q beenden, in Claude „weiter“ schreiben.

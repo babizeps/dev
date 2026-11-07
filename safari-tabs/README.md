@@ -86,8 +86,11 @@ Zum Eintragen beendet das Tool Safari kurz (sonst würde Safari die Änderung ü
 | `--dump-config` | Standardregeln anzeigen |
 | `--json` | Analyse als JSON ausgeben |
 | `--nur-mac` | Tabs von iPhone/iPad (iCloud) nicht einbeziehen |
+| `--rueckgaengig` | letzte Speicherung rückgängig machen (nur deren Lesezeichen) |
+| `--sicherungen` | Sicherungen der Lesezeichen auflisten |
+| `--wiederherstellen NAME` | eine Sicherung zurückspielen (aktueller Stand wird vorher gesichert) |
 
-**Sicherung zurückspielen:** Safari beenden, dann `cp ~/Library/Safari/Bookmarks.plist.backup-DATUM ~/Library/Safari/Bookmarks.plist`.
+**Fehler korrigieren:** `python3 safari_tabs.py --rueckgaengig` entfernt genau die Lesezeichen der letzten Speicherung. `--sicherungen` und `--wiederherstellen NAME` spielen eine komplette Sicherung zurück. Was wann eingetragen wurde, steht in `~/.safari-tabs/verlauf.json`.
 
 ## Eigene Regeln
 

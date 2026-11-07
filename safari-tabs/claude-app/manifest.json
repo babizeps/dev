@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "safari-tabs",
   "display_name": "Safari-Tabs aufräumen",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Analysiert deine Safari-Tabs auf Mac und iPhone/iPad, empfiehlt welche geschlossen werden können und sortiert den Rest in deine vorhandenen Lesezeichen-Ordner ein.",
   "long_description": "Claude liest deine offenen Safari-Tabs – auf dem Mac und über iCloud auch von iPhone und iPad –, zeigt einen Überblick mit Empfehlung (Duplikate, Suchergebnisse, Login- und Fehlerseiten, bereits gespeicherte Seiten …) und schließt nach deiner Bestätigung die überflüssigen Tabs. Danach werden die übrigen Tabs in deine vorhandenen Lesezeichen-Ordner einsortiert (z. B. Video, Article, Tool, Shop). Vor jeder Änderung an den Lesezeichen wird eine Sicherung angelegt. Tabs auf iPhone/iPad werden nicht automatisch geschlossen; dafür gibt es eine Checkliste. Nur macOS.",
   "author": {
@@ -34,6 +34,22 @@
     {
       "name": "safari_lesezeichen_speichern",
       "description": "Tabs in vorhandene Lesezeichen-Ordner eintragen"
+    },
+    {
+      "name": "safari_lesezeichen_suchen",
+      "description": "Lesezeichen suchen"
+    },
+    {
+      "name": "safari_lesezeichen_verlauf",
+      "description": "Letzte Änderungen und Sicherungen anzeigen"
+    },
+    {
+      "name": "safari_lesezeichen_entfernen",
+      "description": "Falsche Lesezeichen entfernen / letzte Speicherung rückgängig machen"
+    },
+    {
+      "name": "safari_sicherung_zurueckspielen",
+      "description": "Sicherung der Lesezeichen zurückspielen"
     }
   ],
   "prompts": [
@@ -42,6 +58,12 @@
       "description": "Safari-Tabs analysieren, Unnötige schließen, Rest in Lesezeichen-Ordner einsortieren",
       "arguments": [],
       "text": "Hilf mir, meine Safari-Tabs auf Mac und iPhone aufzuräumen: Zeig mir zuerst einen Überblick und eine Empfehlung, welche Tabs ich schließen kann, und sortiere danach die übrigen in meine vorhandenen Lesezeichen-Ordner ein. Frag mich vor jedem Schritt."
+    },
+    {
+      "name": "lesezeichen-korrigieren",
+      "description": "Falsch eingetragene Lesezeichen finden und entfernen",
+      "arguments": [],
+      "text": "Bei meinen Safari-Lesezeichen ist etwas falsch eingetragen. Zeig mir die letzten Änderungen (safari_lesezeichen_verlauf), hilf mir die falschen Einträge zu finden und entferne sie nach meiner Bestätigung."
     }
   ],
   "keywords": [

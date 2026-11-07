@@ -109,8 +109,9 @@ class ServerSessionTest(unittest.TestCase):
         ])
         self.assertEqual([r["id"] for r in res], [1, 2, 3, 4, 5])
         self.assertEqual(res[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(res[1]["result"]["tools"]), 4)
-        self.assertEqual(res[2]["result"]["prompts"][0]["name"], "tabs-aufraeumen")
+        self.assertEqual(len(res[1]["result"]["tools"]), 8)
+        self.assertEqual([p["name"] for p in res[2]["result"]["prompts"]],
+                         ["tabs-aufraeumen", "lesezeichen-korrigieren"])
         self.assertIn("safari_tabs_ueberblick",
                       res[3]["result"]["messages"][0]["content"]["text"])
         ov = json.loads(res[4]["result"]["content"][0]["text"])
@@ -181,6 +182,51 @@ class ServerSessionTest(unittest.TestCase):
         path = ("/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/"
                 "Versions/3.9/Resources/Python.app/Contents/MacOS/Python")
         self.assertEqual(st._app_bundle(path), path.split("/Contents/")[0])
+
+    def test_undo_and_remove_via_tools(self):
+        import plistlib, tempfile
+        tmp = tempfile.TemporaryDirectory()
+        base = Path(tmp.name)
+        saved = (st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.apply_bookmark_change)
+        try:
+            st.BRIDGE_DIR = base / "bridge"
+            st.BOOKMARKS_PLIST = base / "Bookmarks.plist"
+            st.BOOKMARKS_PLIST.write_bytes(plistlib.dumps(self.fake.root, fmt=plistlib.FMT_BINARY))
+            st.apply_bookmark_change = lambda change, via_terminal=None: {
+                "ok": True, **st.edit_bookmarks(change, st.BOOKMARKS_PLIST)}
+            st.load_bookmarks_any = lambda allow_terminal=True: (
+                plistlib.loads(st.BOOKMARKS_PLIST.read_bytes()), "direkt", None)
+            # falsch eintragen
+            t1 = st.Tab(0, 0, "How I Caught a Spy", "https://www.youtube.com/watch?v=spy")
+            t1.target_path = "Lesezeichenmenü/Video"
+            t2 = st.Tab(0, 0, "The AI Future – WSJ", "https://www.wsj.com/ai")
+            t2.target_path = "Lesezeichenmenü/Article"
+            st.edit_bookmarks({"add": [st._tab_to_dict(t1), st._tab_to_dict(t2)]},
+                              st.BOOKMARKS_PLIST)
+            res = self.rpc([
+                self.call(1, "safari_lesezeichen_verlauf"),
+                self.call(2, "safari_lesezeichen_suchen", {"suche": "wsj"}),
+                self.call(3, "safari_lesezeichen_entfernen", {"eintraege": [
+                    {"titel": "The AI Future – WSJ", "ordner": "Article"}]}),
+                self.call(4, "safari_lesezeichen_entfernen",
+                          {"letzte_speicherung_rueckgaengig": True}),
+                self.call(5, "safari_lesezeichen_suchen", {"suche": "", "ordner": "Video"}),
+                self.call(6, "safari_sicherung_zurueckspielen", {"sicherung": "../x"}),
+            ])
+            j = [json.loads(r["result"]["content"][0]["text"]) if not r["result"].get("isError")
+                 else r["result"] for r in res]
+            self.assertEqual(len(j[0]["aenderungen"][0]["hinzugefuegt"]), 2)
+            self.assertTrue(j[0]["sicherungen"])
+            self.assertEqual(j[1]["treffer"][0]["ordner"], "Lesezeichenmenü/Article")
+            self.assertEqual(len(j[2]["entfernt"]), 1)
+            self.assertIn("iCloud", j[2]["hinweis"])
+            self.assertEqual([e["titel"] for e in j[3]["entfernt"]], ["How I Caught a Spy"])
+            self.assertEqual([h["titel"] for h in j[4]["treffer"]], ["x"])  # nur das alte bleibt
+            self.assertTrue(j[5]["isError"])
+            self.assertIn("Ungültiger Sicherungsname", j[5]["content"][0]["text"])
+        finally:
+            st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.apply_bookmark_change = saved
+            tmp.cleanup()
 
     def test_unknown_method(self):
         res = self.rpc([{"jsonrpc": "2.0", "id": 9, "method": "foo/bar"}])

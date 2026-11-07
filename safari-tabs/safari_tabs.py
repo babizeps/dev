@@ -1086,7 +1086,8 @@ def run_via_terminal(op: str, payload: Optional[Dict] = None,
     out = BRIDGE_DIR / f"{token}.out.json"
     if payload is not None:
         inp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    label = {"copy": "Lesezeichen lesen", "apply": "Lesezeichen eintragen"}.get(op, op)
+    label = {"copy": "Lesezeichen lesen", "edit": "Lesezeichen ändern",
+             "list": "Sicherungen auflisten"}.get(op, op)
     script = BRIDGE_DIR / f"safari-tabs-{op}.command"
     script.write_text(
         "#!/bin/bash\n"
@@ -1138,14 +1139,13 @@ def bridge_main(op: str, token: str) -> int:
                         shutil.copy2(f, cdir / (cloud.name + suffix))
             res = {"ok": True, "cloud": bool(cloud)}
             print("✓ Lesezeichen gelesen")
-        elif op == "apply":
+        elif op == "edit":
             data = json.loads((BRIDGE_DIR / f"{token}.in.json").read_text(encoding="utf-8"))
-            tabs = [Tab(window=0, index=0, title=d["title"], url=d["url"], action=BOOKMARK,
-                        target_key=d["target_key"], target_path=d["target_path"],
-                        target_new=d["target_new"]) for d in data["tabs"]]
-            result, backup = write_bookmarks_plist(tabs, load_config(None), BOOKMARKS_PLIST)
-            res = {"ok": True, "result": result, "backup": backup.name}
-            print(f"✓ {sum(result.values())} Lesezeichen eingetragen")
+            res = {"ok": True, **edit_bookmarks(data, BOOKMARKS_PLIST)}
+            print(f"✓ {res.get('aktion', 'Lesezeichen geändert')}")
+        elif op == "list":
+            res = {"ok": True, "sicherungen": list_backups(BOOKMARKS_PLIST)}
+            print("✓ Sicherungen gelesen")
         else:
             res = {"ok": False, "error": f"unbekannte Aktion {op}"}
     except PermissionError:
@@ -1226,8 +1226,13 @@ def _index_nodes(root: Dict) -> Dict[str, Dict]:
     return idx
 
 
-def add_to_existing_folders(root: Dict, tabs: List[Tab], cfg: Dict) -> Dict[str, int]:
-    """Fügt Tabs in ihre Zielordner ein. Gibt {Ordnerpfad: Anzahl} zurück."""
+def add_to_existing_folders(root: Dict, tabs: List[Tab], cfg: Dict,
+                            log: Optional[Dict] = None) -> Dict[str, int]:
+    """Fügt Tabs in ihre Zielordner ein. Gibt {Ordnerpfad: Anzahl} zurück.
+
+    log (optional) sammelt, was neu angelegt wurde – für „rückgängig“:
+    {"hinzugefuegt": [{id, titel, url, ordner}], "ordner_neu": [{id, titel}]}
+    """
     tracking = cfg["tracking_params"]
     existing = {normalize_url(u, tracking) for u in iter_bookmark_urls(root)}
     idx = _index_nodes(root)
@@ -1248,10 +1253,230 @@ def add_to_existing_folders(root: Dict, tabs: List[Tab], cfg: Dict) -> Dict[str,
                            if c.get("Title") in SPECIAL_TITLES), default=0)
                 children.insert(pos, node)
                 idx[t.target_path] = node
-        node.setdefault("Children", []).append(_new_leaf(t.title, url))
+                if log is not None:
+                    log.setdefault("ordner_neu", []).append(
+                        {"id": node["WebBookmarkUUID"], "titel": t.target_path})
+        leaf = _new_leaf(t.title, url)
+        node.setdefault("Children", []).append(leaf)
+        if log is not None:
+            log.setdefault("hinzugefuegt", []).append(
+                {"id": leaf["WebBookmarkUUID"], "titel": t.title, "url": url,
+                 "ordner": t.target_path})
         existing.add(key)
         result[t.target_path] = result.get(t.target_path, 0) + 1
     return result
+
+
+# --------------------------------------------------------------------------
+# Korrigieren: entfernen, rückgängig machen, Sicherung zurückspielen
+# --------------------------------------------------------------------------
+BACKUP_RE = re.compile(r"^Bookmarks\.plist\.(backup|vor-wiederherstellung)-\d{8}-\d{6}$")
+HISTORY_KEEP = 30
+
+
+def _history_file() -> Path:
+    return BRIDGE_DIR / "verlauf.json"
+
+
+def load_history() -> List[Dict]:
+    try:
+        return json.loads(_history_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+def append_history(entry: Dict) -> None:
+    hist = load_history()
+    hist.append(entry)
+    BRIDGE_DIR.mkdir(exist_ok=True)
+    _history_file().write_text(json.dumps(hist[-HISTORY_KEEP:], ensure_ascii=False, indent=1),
+                               encoding="utf-8")
+
+
+def iter_leaves_with_path(root: Dict) -> Iterable[Tuple[Dict, Dict, str]]:
+    """(Elternordner, Lesezeichen, Ordnerpfad) für alle Lesezeichen (ohne Leseliste)."""
+    def walk(node: Dict, path: str):
+        for c in node.get("Children", []) or []:
+            typ = c.get("WebBookmarkType")
+            if typ == "WebBookmarkTypeLeaf":
+                yield node, c, path
+            elif typ == "WebBookmarkTypeList" and c.get("Title") not in SKIP_TITLES:
+                t = _node_title(c)
+                yield from walk(c, f"{path}/{t}" if path else t)
+    yield from walk(root, "")
+
+
+def _leaf_title(leaf: Dict) -> str:
+    return (leaf.get("URIDictionary") or {}).get("title") or leaf.get("Title") or ""
+
+
+def _folder_matches(want: Optional[str], path: str) -> bool:
+    if not want:
+        return True
+    w = want.strip().strip("/").lower()
+    p = path.lower()
+    return w == p or w == p.rsplit("/", 1)[-1] or p.endswith("/" + w)
+
+
+def _leaf_matches(item: Dict, leaf: Dict, path: str, tracking: Iterable[str]) -> bool:
+    if item.get("id"):
+        return leaf.get("WebBookmarkUUID") == item["id"]
+    if not _folder_matches(item.get("ordner"), path):
+        return False
+    if item.get("url"):
+        return normalize_url(leaf.get("URLString", ""), tracking) == \
+            normalize_url(item["url"], tracking)
+    if item.get("titel") and item.get("ordner"):
+        return _leaf_title(leaf).strip().lower() == item["titel"].strip().lower()
+    return False
+
+
+def find_bookmarks(root: Dict, items: List[Dict], cfg: Dict) -> List[Dict]:
+    tracking = cfg["tracking_params"]
+    out = []
+    for _, leaf, path in iter_leaves_with_path(root):
+        if any(_leaf_matches(it, leaf, path, tracking) for it in items):
+            out.append({"id": leaf.get("WebBookmarkUUID"), "titel": _leaf_title(leaf),
+                        "url": leaf.get("URLString"), "ordner": path})
+    return out
+
+
+def search_bookmarks(root: Dict, text: str, folder: Optional[str] = None,
+                     limit: int = 50) -> List[Dict]:
+    """Volltextsuche in Titel und URL (für Claude, um Einträge zu finden)."""
+    q = (text or "").strip().lower()
+    out = []
+    for _, leaf, path in iter_leaves_with_path(root):
+        if not _folder_matches(folder, path):
+            continue
+        if q and q not in _leaf_title(leaf).lower() and q not in leaf.get("URLString", "").lower():
+            continue
+        out.append({"id": leaf.get("WebBookmarkUUID"), "titel": _leaf_title(leaf),
+                    "url": leaf.get("URLString"), "ordner": path})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def remove_from_tree(root: Dict, items: List[Dict], cfg: Dict,
+                     empty_folder_ids: Iterable[str] = ()) -> List[Dict]:
+    """Entfernt passende Lesezeichen. Ordner werden nur entfernt, wenn sie in
+    empty_folder_ids stehen (vom Tool angelegt) und danach leer sind."""
+    tracking = cfg["tracking_params"]
+    hits = [(parent, leaf, path) for parent, leaf, path in iter_leaves_with_path(root)
+            if any(_leaf_matches(it, leaf, path, tracking) for it in items)]
+    removed = []
+    for parent, leaf, path in hits:
+        kids = parent.get("Children", [])
+        for i, c in enumerate(kids):
+            if c is leaf:
+                del kids[i]
+                removed.append({"id": leaf.get("WebBookmarkUUID"), "titel": _leaf_title(leaf),
+                                "url": leaf.get("URLString"), "ordner": path})
+                break
+    ids = set(empty_folder_ids)
+    if ids:
+        def prune(node: Dict) -> None:
+            kids = node.get("Children", []) or []
+            node["Children"] = [c for c in kids if not (
+                c.get("WebBookmarkType") == "WebBookmarkTypeList"
+                and c.get("WebBookmarkUUID") in ids and not c.get("Children"))]
+            for c in node["Children"]:
+                if c.get("WebBookmarkType") == "WebBookmarkTypeList":
+                    prune(c)
+        prune(root)
+    return removed
+
+
+def list_backups(path: Path = None) -> List[Dict]:
+    path = path or BOOKMARKS_PLIST
+    out = []
+    for f in path.parent.glob("Bookmarks.plist.*"):
+        if BACKUP_RE.match(f.name):
+            st_ = f.stat()
+            out.append({"name": f.name, "zeit": _dt.datetime.fromtimestamp(st_.st_mtime)
+                        .strftime("%d.%m.%Y %H:%M:%S"), "groesse_kb": st_.st_size // 1024})
+    return sorted(out, key=lambda d: d["name"].rsplit("-", 2)[-2:], reverse=True)
+
+
+def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
+    """Führt eine Änderung an Bookmarks.plist aus (Safari muss beendet sein).
+
+    change = {"add": [Tab-Dicts], "remove": [{id}|{url, ordner?}|{titel, ordner}],
+              "remove_folder_ids": [...], "restore": "Bookmarks.plist.backup-…",
+              "aktion": "Beschreibung für den Verlauf"}
+    Vorher wird immer eine Sicherung angelegt.
+    """
+    path = path or BOOKMARKS_PLIST
+    cfg = load_config(None)
+    stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    entry: Dict = {"zeit": _dt.datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                   "aktion": change.get("aktion", "")}
+
+    if change.get("restore"):
+        name = change["restore"]
+        if not BACKUP_RE.match(name):
+            raise ValueError(f"Ungültiger Sicherungsname: {name}")
+        src = path.with_name(name)
+        if not src.exists():
+            raise FileNotFoundError(f"Sicherung {name} nicht gefunden")
+        plistlib.loads(src.read_bytes())          # muss eine gültige plist sein
+        before = path.with_name(f"Bookmarks.plist.vor-wiederherstellung-{stamp}")
+        shutil.copy2(path, before)
+        tmp = path.with_suffix(".plist.tmp")
+        shutil.copy2(src, tmp)
+        os.replace(tmp, path)
+        entry.update(aktion=entry["aktion"] or "Sicherung zurückgespielt",
+                     wiederhergestellt=name, sicherung=before.name)
+        append_history(entry)
+        return entry
+
+    with open(path, "rb") as fh:
+        root = plistlib.load(fh)
+    backup = path.with_name(f"Bookmarks.plist.backup-{stamp}")
+    shutil.copy2(path, backup)
+    entry["sicherung"] = backup.name
+    log: Dict = {"hinzugefuegt": [], "ordner_neu": []}
+    if change.get("add"):
+        tabs = [Tab(window=0, index=0, title=d["title"], url=d["url"], action=BOOKMARK,
+                    target_key=d.get("target_key", ""), target_path=d["target_path"],
+                    target_new=d.get("target_new", False)) for d in change["add"]]
+        entry["ergebnis"] = add_to_existing_folders(root, tabs, cfg, log)
+        entry["aktion"] = entry["aktion"] or "Lesezeichen hinzugefügt"
+    if change.get("remove") or change.get("remove_folder_ids"):
+        entry["entfernt"] = remove_from_tree(root, change.get("remove", []), cfg,
+                                             change.get("remove_folder_ids", []))
+        entry["aktion"] = entry["aktion"] or "Lesezeichen entfernt"
+    entry.update(log)
+    tmp = path.with_suffix(".plist.tmp")
+    with open(tmp, "wb") as fh:
+        plistlib.dump(root, fh, fmt=plistlib.FMT_BINARY)
+    os.replace(tmp, path)
+    append_history(entry)
+    return entry
+
+
+def undo_change_for(entry: Dict) -> Dict:
+    """Änderung, die einen Verlaufseintrag (Hinzufügen) rückgängig macht."""
+    return {"remove": [{"id": a["id"]} for a in entry.get("hinzugefuegt", [])],
+            "remove_folder_ids": [f["id"] for f in entry.get("ordner_neu", [])],
+            "aktion": f"Rückgängig: {entry.get('aktion', '')} vom {entry.get('zeit', '')}"}
+
+
+def last_undoable() -> Optional[Dict]:
+    for e in reversed(load_history()):
+        if e.get("hinzugefuegt") and not e.get("rueckgaengig_gemacht"):
+            return e
+    return None
+
+
+def mark_undone(entry: Dict) -> None:
+    hist = load_history()
+    for e in hist:
+        if e.get("zeit") == entry.get("zeit") and e.get("sicherung") == entry.get("sicherung"):
+            e["rueckgaengig_gemacht"] = True
+    BRIDGE_DIR.mkdir(exist_ok=True)
+    _history_file().write_text(json.dumps(hist, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def write_bookmarks_plist(tabs: List[Tab], cfg: Dict,
@@ -1532,50 +1757,85 @@ def step_bookmarks(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[boo
 # --------------------------------------------------------------------------
 # Safari kurz beenden, Lesezeichen schreiben, Safari wieder öffnen
 # --------------------------------------------------------------------------
-def save_into_safari(tabs_to_save: List[Tab], cfg: Dict, via_terminal: bool = False) -> bool:
-    remaining = [t.url for t in read_safari_tabs() if not is_empty(t)]
-    print("\nSafari wird kurz beendet, damit die Lesezeichen sicher eingetragen werden …")
-    osascript("function run(){ Application('Safari').quit(); }")
-    for _ in range(60):
-        if not safari_running():
-            break
-        time.sleep(0.25)
-    else:
-        print("⚠️  Safari hat sich nicht beendet – Lesezeichen nicht geschrieben.",
-              file=sys.stderr)
-        return False
-    time.sleep(0.5)
-    ok = True
+def apply_bookmark_change(change: Dict, via_terminal: Optional[bool] = None) -> Dict:
+    """Safari beenden → Änderung ausführen (direkt oder über Terminal) → Safari öffnen.
+
+    Gibt {"ok": True, …Verlaufseintrag} oder {"ok": False, "fehler": …} zurück.
+    """
+    if via_terminal is None:
+        via_terminal = _probe(BOOKMARKS_PLIST) != "ok"
+    was_running = safari_running()
+    remaining: List[str] = []
+    if was_running:
+        remaining = [t.url for t in read_safari_tabs() if not is_empty(t)]
+        print("Safari wird kurz beendet, damit die Lesezeichen sicher geändert werden …")
+        osascript("function run(){ Application('Safari').quit(); }")
+        for _ in range(60):
+            if not safari_running():
+                break
+            time.sleep(0.25)
+        else:
+            return {"ok": False, "fehler": "Safari hat sich nicht beendet – nichts geändert."}
+        time.sleep(0.5)
     try:
         try:
             if via_terminal:
                 raise PermissionError
-            result, backup_name = write_bookmarks_plist(tabs_to_save, cfg, BOOKMARKS_PLIST)
-            backup_name = backup_name.name
+            return {"ok": True, **edit_bookmarks(change, BOOKMARKS_PLIST)}
         except PermissionError:
             if sys.platform != "darwin":
                 raise
-            print("Kein direkter Zugriff – Lesezeichen werden über Terminal eingetragen …")
-            res = run_via_terminal("apply", {"tabs": [_tab_to_dict(t) for t in tabs_to_save]})
-            result, backup_name = res["result"], res["backup"]
-        total = sum(result.values())
-        print(f"★ {total} Lesezeichen eingetragen (Sicherung: {backup_name})")
-        for path, n in sorted(result.items()):
-            print(f"    {path}: +{n}")
-        if total < len(tabs_to_save):
-            print(f"    ({len(tabs_to_save) - total} waren schon vorhanden)")
+            print("Kein direkter Zugriff – Änderung läuft über Terminal …")
+            res = run_via_terminal("edit", change)
+            res.pop("error", None)
+            return res
     except PermissionError:
-        ok = False
-        print("⚠️  Kein Schreibzugriff auf Bookmarks.plist – Terminal braucht "
-              "Festplattenvollzugriff.", file=sys.stderr)
-    except BridgeError as e:
-        ok = False
-        print(f"⚠️  {e}")
+        return {"ok": False, "fehler": TERMINAL_FDA_HINT}
+    except (BridgeError, ValueError, FileNotFoundError) as e:
+        return {"ok": False, "fehler": str(e)}
     finally:
-        subprocess.run(["open", "-a", "Safari"])
-        time.sleep(3)
-        restore_missing(remaining)
-    return ok
+        if was_running:
+            subprocess.run(["open", "-a", "Safari"])
+            time.sleep(3)
+            restore_missing(remaining)
+
+
+def save_into_safari(tabs_to_save: List[Tab], cfg: Dict,
+                     via_terminal: Optional[bool] = None) -> bool:
+    res = apply_bookmark_change({"add": [_tab_to_dict(t) for t in tabs_to_save]},
+                                via_terminal)
+    if not res.get("ok"):
+        print(f"⚠️  {res.get('fehler')}")
+        return False
+    result = res.get("ergebnis", {})
+    total = sum(result.values())
+    print(f"★ {total} Lesezeichen eingetragen (Sicherung: {res.get('sicherung')})")
+    for path, n in sorted(result.items()):
+        print(f"    {path}: +{n}")
+    if total < len(tabs_to_save):
+        print(f"    ({len(tabs_to_save) - total} waren schon vorhanden)")
+    print("    Rückgängig: python3 safari_tabs.py --rueckgaengig")
+    return True
+
+
+def run_undo_last() -> int:
+    entry = last_undoable()
+    if not entry:
+        print("Nichts zum Rückgängigmachen gefunden.")
+        return 1
+    print(f"Mache rückgängig: {entry.get('aktion')} vom {entry.get('zeit')}")
+    for a in entry["hinzugefuegt"]:
+        print(f"  – {a['titel'] or a['url']}  ({a['ordner']})")
+    if _ask("Wirklich entfernen? [j/N] ") not in ("j", "ja", "y"):
+        print("Abgebrochen.")
+        return 1
+    res = apply_bookmark_change(undo_change_for(entry))
+    if not res.get("ok"):
+        print(f"⚠️  {res.get('fehler')}")
+        return 1
+    mark_undone(entry)
+    print(f"✓ {len(res.get('entfernt', []))} Lesezeichen entfernt (Sicherung: {res['sicherung']})")
+    return 0
 
 
 def restore_missing(urls: List[str]) -> None:
@@ -1639,12 +1899,33 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="Tabs von iPhone/iPad (iCloud) nicht einbeziehen")
     ap.add_argument("--cloud-db", metavar="DB",
                     help="andere CloudTabs.db verwenden (Test)")
+    ap.add_argument("--rueckgaengig", action="store_true",
+                    help="letzte Speicherung rückgängig machen (nur deren Lesezeichen)")
+    ap.add_argument("--sicherungen", action="store_true",
+                    help="vorhandene Sicherungen der Lesezeichen auflisten")
+    ap.add_argument("--wiederherstellen", metavar="NAME",
+                    help="Sicherung zurückspielen (Name aus --sicherungen)")
     ap.add_argument("--bridge-op", help=argparse.SUPPRESS)
     ap.add_argument("--bridge-token", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
 
     if args.bridge_op:
         return bridge_main(args.bridge_op, args.bridge_token or "x")
+    if args.rueckgaengig:
+        require_macos()
+        return run_undo_last()
+    if args.sicherungen:
+        for b in list_backups():
+            print(f"  {b['name']}   {b['zeit']}   {b['groesse_kb']} KB")
+        return 0
+    if args.wiederherstellen:
+        require_macos()
+        if _ask(f"Lesezeichen auf {args.wiederherstellen} zurücksetzen? [j/N] ") not in ("j", "ja"):
+            return 1
+        res = apply_bookmark_change({"restore": args.wiederherstellen})
+        print(("✓ zurückgespielt, vorheriger Stand gesichert als " + res["sicherung"])
+              if res.get("ok") else f"⚠️  {res.get('fehler')}")
+        return 0 if res.get("ok") else 1
 
     if args.dump_config:
         print(json.dumps(DEFAULT_CONFIG, indent=2, ensure_ascii=False))

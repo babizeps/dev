@@ -29,7 +29,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.3.0"
+SERVER_VERSION = "1.4.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -239,7 +239,166 @@ def tool_access(args: Dict) -> Dict:
     return diag
 
 
+# --------------------------------------------------------------------------
+# Korrigieren: suchen, entfernen, rückgängig, Sicherung zurückspielen
+# --------------------------------------------------------------------------
+ICLOUD_NOTE = ("Ist Safari in iCloud eingeschaltet, kann iCloud gelöschte Einträge in seltenen "
+               "Fällen wieder zurückbringen. Prüfe nach etwa einer Minute mit "
+               "safari_lesezeichen_suchen; tauchen sie wieder auf, muss der Nutzer sie in "
+               "Safari mit ⌥⌘B (Lesezeichen bearbeiten) → Rechtsklick → Löschen entfernen.")
+
+
+def _read_root() -> Dict:
+    try:
+        root, mode, _ = st.load_bookmarks_any(allow_terminal=True)
+    except st.BridgeError as e:
+        raise ValueError(str(e))
+    finally:
+        st.cleanup_bridge_copies()
+    if not root:
+        raise ValueError("Kein Zugriff auf die Lesezeichen. " + st.TERMINAL_FDA_HINT)
+    return root
+
+
+def tool_search(args: Dict) -> Dict:
+    root = _read_root()
+    hits = st.search_bookmarks(root, args.get("suche", ""), args.get("ordner"),
+                               limit=int(args.get("max", 50)))
+    return {"treffer": hits, "anzahl": len(hits)}
+
+
+def tool_history(_: Dict) -> Dict:
+    hist = st.load_history()[-10:]
+    try:
+        backups = st.list_backups()
+    except PermissionError:
+        try:
+            backups = st.run_via_terminal("list").get("sicherungen", [])
+        except st.BridgeError as e:
+            backups = [{"fehler": str(e)}]
+    return {
+        "aenderungen": [
+            {"zeit": e.get("zeit"), "aktion": e.get("aktion"), "sicherung": e.get("sicherung"),
+             "hinzugefuegt": e.get("hinzugefuegt", []), "entfernt": e.get("entfernt", []),
+             "ordner_neu": e.get("ordner_neu", []),
+             "rueckgaengig_gemacht": e.get("rueckgaengig_gemacht", False)}
+            for e in reversed(hist)],
+        "sicherungen": backups[:15],
+        "hinweis": None if hist else (
+            "Noch kein Verlauf – Speicherungen mit älteren Versionen wurden nicht "
+            "protokolliert. Einzelne Einträge lassen sich trotzdem per URL oder Titel+Ordner "
+            "entfernen (safari_lesezeichen_suchen hilft beim Finden)."),
+    }
+
+
+def _finish(res: Dict, extra: Optional[Dict] = None) -> Dict:
+    STATE["plan"] = None          # Safari wurde neu gestartet → Tab-Nummern ungültig
+    if not res.get("ok"):
+        return {"ok": False, "fehler": res.get("fehler"), "zugriff": st.access_diagnosis()}
+    out = {k: v for k, v in res.items() if k in (
+        "ok", "aktion", "sicherung", "entfernt", "wiederhergestellt", "ergebnis")}
+    out.update(extra or {})
+    return out
+
+
+def tool_remove(args: Dict) -> Dict:
+    items = [e for e in args.get("eintraege", []) if isinstance(e, dict)]
+    for e in items:
+        if not (e.get("id") or e.get("url") or (e.get("titel") and e.get("ordner"))):
+            raise ValueError("Jeder Eintrag braucht id, url oder titel+ordner.")
+    entry = None
+    change: Dict = {"remove": items, "aktion": "Lesezeichen entfernt"}
+    if args.get("letzte_speicherung_rueckgaengig"):
+        entry = st.last_undoable()
+        if not entry:
+            raise ValueError("Im Verlauf gibt es keine Speicherung, die sich rückgängig machen "
+                             "lässt. Einträge stattdessen per url oder titel+ordner angeben.")
+        undo = st.undo_change_for(entry)
+        change = {"remove": undo["remove"] + items,
+                  "remove_folder_ids": undo["remove_folder_ids"], "aktion": undo["aktion"]}
+    if not change["remove"]:
+        raise ValueError("Nichts zum Entfernen angegeben.")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        res = st.apply_bookmark_change(change)
+    if res.get("ok") and entry:
+        st.mark_undone(entry)
+    out = _finish(res, {"protokoll": buf.getvalue().strip()})
+    if res.get("ok"):
+        found = len(res.get("entfernt", []))
+        if found < len(change["remove"]):
+            out["nicht_gefunden"] = len(change["remove"]) - found
+        out["hinweis"] = ICLOUD_NOTE
+    return out
+
+
+def tool_restore(args: Dict) -> Dict:
+    name = (args.get("sicherung") or "").strip()
+    if not name:
+        raise ValueError("Name der Sicherung fehlt (siehe safari_lesezeichen_verlauf).")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        res = st.apply_bookmark_change({"restore": name})
+    out = _finish(res, {"protokoll": buf.getvalue().strip()})
+    if res.get("ok"):
+        out["hinweis"] = ("Der Stand vor dem Zurückspielen ist als „" + res["sicherung"] +
+                          "“ gesichert. " + ICLOUD_NOTE.replace("gelöschte Einträge",
+                                                                "den alten Stand"))
+    return out
+
+
 TOOLS = {
+    "safari_lesezeichen_suchen": {
+        "fn": tool_search,
+        "description": (
+            "Sucht Lesezeichen nach Text in Titel/URL (optional nur in einem Ordner) und "
+            "liefert id, Titel, URL und Ordner. Zum Finden falscher Einträge vor dem Entfernen "
+            "und zum Prüfen danach. Ändert nichts."),
+        "inputSchema": {"type": "object", "properties": {
+            "suche": {"type": "string", "description": "Text in Titel oder URL (leer = alle)"},
+            "ordner": {"type": "string", "description": "nur in diesem Ordner (Name oder Pfad)"},
+            "max": {"type": "integer", "description": "maximale Trefferzahl (Standard 50)"}}},
+        "annotations": {"title": "Lesezeichen suchen", "readOnlyHint": True},
+    },
+    "safari_lesezeichen_verlauf": {
+        "fn": tool_history,
+        "description": (
+            "Zeigt die letzten Änderungen dieses Tools an den Lesezeichen (was wann in welchen "
+            "Ordner eingetragen oder entfernt wurde, mit ids) und die vorhandenen Sicherungen. "
+            "Ändert nichts."),
+        "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {"title": "Lesezeichen-Verlauf", "readOnlyHint": True},
+    },
+    "safari_lesezeichen_entfernen": {
+        "fn": tool_remove,
+        "description": (
+            "Entfernt Lesezeichen, z. B. nach einer falschen Zuordnung. Einträge per id (aus "
+            "Verlauf/Suche), per url (optional mit ordner) oder per titel+ordner. Mit "
+            "letzte_speicherung_rueckgaengig=true werden alle Lesezeichen der letzten "
+            "Speicherung entfernt (und dabei neu angelegte, leere Ordner). Ordner selbst und "
+            "andere Lesezeichen bleiben erhalten. Safari wird kurz beendet, vorher wird "
+            "gesichert. Vorher dem Nutzer genau zeigen, was entfernt wird, und nur nach "
+            "ausdrücklicher Bestätigung aufrufen. Bevorzugt gegenüber dem Zurückspielen einer "
+            "Sicherung."),
+        "inputSchema": {"type": "object", "properties": {
+            "eintraege": {"type": "array", "items": {"type": "object", "properties": {
+                "id": {"type": "string"}, "url": {"type": "string"},
+                "titel": {"type": "string"}, "ordner": {"type": "string"}}}},
+            "letzte_speicherung_rueckgaengig": {"type": "boolean"}}},
+        "annotations": {"title": "Lesezeichen entfernen", "destructiveHint": True},
+    },
+    "safari_sicherung_zurueckspielen": {
+        "fn": tool_restore,
+        "description": (
+            "Setzt alle Lesezeichen auf eine Sicherung zurück (Name aus "
+            "safari_lesezeichen_verlauf). Alle späteren Änderungen – auch eigene des Nutzers – "
+            "gehen verloren; der aktuelle Stand wird vorher gesichert. Nur verwenden, wenn "
+            "gezieltes Entfernen nicht reicht, und nur nach ausdrücklicher Bestätigung."),
+        "inputSchema": {"type": "object", "properties": {
+            "sicherung": {"type": "string", "description": "z. B. Bookmarks.plist.backup-20261107-111423"}},
+            "required": ["sicherung"]},
+        "annotations": {"title": "Sicherung zurückspielen", "destructiveHint": True},
+    },
     "safari_zugriff_pruefen": {
         "fn": tool_access,
         "description": (
@@ -335,12 +494,26 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
 
 5. Bestätige zum Schluss kurz, was passiert ist (geschlossen, gespeichert pro Ordner).
 
-Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Zugriff: Hat die Erweiterung selbst keinen Festplattenvollzugriff, liest und schreibt sie die Lesezeichen über ein kurz geöffnetes Terminal-Fenster (`zugriff_ueber`: Terminal). Sag mir dann kurz, dass ich das Fenster schließen kann. Ist `lesezeichen_zugriff` trotzdem false, erkläre mir genau den `hinweis` (meist: Festplattenvollzugriff für **Terminal** einschalten) und rufe danach auf mein „weiter“ hin `safari_tabs_ueberblick` erneut auf."""
+Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Zugriff: Hat die Erweiterung selbst keinen Festplattenvollzugriff, liest und schreibt sie die Lesezeichen über ein kurz geöffnetes Terminal-Fenster (`zugriff_ueber`: Terminal). Sag mir dann kurz, dass ich das Fenster schließen kann. Ist `lesezeichen_zugriff` trotzdem false, erkläre mir genau den `hinweis` (meist: Festplattenvollzugriff für **Terminal** einschalten) und rufe danach auf mein „weiter“ hin `safari_tabs_ueberblick` erneut auf.
+
+Korrekturen: Ist etwas falsch eingetragen, nutze `safari_lesezeichen_verlauf` bzw. `safari_lesezeichen_suchen`, zeig mir genau, was entfernt würde, und entferne es nach meinem OK mit `safari_lesezeichen_entfernen` (für die ganze letzte Speicherung: `letzte_speicherung_rueckgaengig`). Danach trägst du – wieder nach OK – die richtigen Einträge mit `safari_lesezeichen_speichern` ein (dafür vorher `safari_tabs_ueberblick` aufrufen). Eine Sicherung zurückspielen (`safari_sicherung_zurueckspielen`) nur, wenn gezieltes Entfernen nicht reicht. Prüfe nach dem Entfernen nach etwa einer Minute mit `safari_lesezeichen_suchen`, ob iCloud die Einträge zurückgebracht hat."""
 
 PROMPTS = {
     "tabs-aufraeumen": {
         "description": "Safari-Tabs analysieren, Unnötige schließen, Rest in Lesezeichen-Ordner einsortieren",
         "text": PROMPT_TEXT,
+    },
+    "lesezeichen-korrigieren": {
+        "description": "Falsch eingetragene Lesezeichen finden und entfernen",
+        "text": (
+            "Bei meinen Safari-Lesezeichen ist etwas falsch eingetragen. Antworte auf Deutsch.\n"
+            "1. Rufe `safari_lesezeichen_verlauf` auf und zeig mir die letzten Änderungen "
+            "(was wann in welchen Ordner kam).\n"
+            "2. Frag mich, was falsch ist, oder finde es mit `safari_lesezeichen_suchen`.\n"
+            "3. Zeig mir eine Liste (Titel, Ordner), was entfernt wird, und entferne es erst "
+            "nach meinem OK mit `safari_lesezeichen_entfernen`.\n"
+            "4. Biete an, die richtigen Einträge danach neu einzutragen.\n"
+            "Eine Sicherung nur zurückspielen, wenn ich das ausdrücklich will."),
     },
 }
 
