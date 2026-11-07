@@ -53,9 +53,10 @@ ACTION_KEY = {"s": CLOSE, "l": BOOKMARK, "b": KEEP}
 # Standard-Konfiguration (kann per --config JSON-Datei überschrieben werden)
 # --------------------------------------------------------------------------
 DEFAULT_CONFIG: Dict = {
-    # Ordner für Tabs, die zu keinem vorhandenen Ordner passen
-    # (wird nur angelegt, wenn nötig)
-    "fallback_folder": "Unsortiert",
+    # Ordner für Tabs, die zu keinem vorhandenen Ordner passen. None = kein
+    # Sammelordner: solche Tabs bekommen keinen Vorschlag und müssen zugeordnet
+    # werden (oder bleiben offen).
+    "fallback_folder": None,
     # Mindestpunktzahl, damit ein Tab einem vorhandenen Ordner zugeordnet wird
     "min_match_score": 3,
     "close_already_bookmarked": True,
@@ -943,8 +944,11 @@ def assign_folders(plan: Plan, folders: List[Folder], cfg: Dict) -> None:
         if best and best_score >= threshold:
             t.target_key, t.target_path = best.key, best.path
             t.target_new, t.target_why = False, best_why
-        else:
+        elif cfg.get("fallback_folder"):
             set_new_target(t, cfg["fallback_folder"], "kein passender Ordner")
+        else:
+            t.target_key = t.target_path = ""
+            t.target_new, t.target_why = False, "kein passender Ordner – bitte zuordnen"
 
 
 class AmbiguousFolder(ValueError):
@@ -1404,6 +1408,8 @@ def add_to_existing_folders(root: Dict, tabs: List[Tab], cfg: Dict,
     children = root.setdefault("Children", [])
     result: Dict[str, int] = {}
     for t in tabs:
+        if not t.target_path:            # ohne Ziel-Ordner wird nichts gespeichert
+            continue
         url = clean_url(t.url, tracking)
         key = normalize_url(url, tracking)
         if key in existing:
@@ -1589,14 +1595,104 @@ def _natural_key(text: str) -> List:
     return [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", (text or "").casefold())]
 
 
+GENERIC_FOLDER_NAMES = LAST_FOLDER_NAMES | {
+    "verschiedenes", "allgemeines", "weitere", "weiteres", "miscellaneous", "stuff", "mix",
+    "gemischt", "neu", "new", "temp", "tmp", "unsorted", "sammlung", "kram", "zeug",
+    "various", "random", "extras", "extra", "dies und das", "dies & das", "etc", "ordner",
+    "folder", "neuer ordner", "new folder", "unbenannt", "untitled", "tabs", "links",
+    "lesezeichen", "bookmarks", "zu sortieren", "to sort", "inbox", "eingang",
+}
+GENERIC_PATTERN = re.compile(r"^(neuer? ordner|new folder|ordner|folder|untitled|unbenannt)"
+                             r"\s*\d*$|^(sonstige|andere|weitere|other|misc)\b", re.I)
+MIN_PER_FOLDER = 2
+MAX_DEPTH = 3
+
+
+def is_generic_name(name: str) -> bool:
+    n = " ".join((name or "").split()).strip().casefold()
+    return not n or n in GENERIC_FOLDER_NAMES or bool(GENERIC_PATTERN.search(n))
+
+
+def _count_leaves(node: Dict) -> int:
+    n = 0
+    for c in node.get("Children", []) or []:
+        if c.get("WebBookmarkType") == "WebBookmarkTypeLeaf":
+            n += 1
+        elif c.get("WebBookmarkType") == "WebBookmarkTypeList" and c.get("Title") not in SKIP_TITLES:
+            n += _count_leaves(c)
+    return n
+
+
+def check_structure(base: Dict, base_path: str, rel_paths: Iterable[str]) -> List[str]:
+    """Regeln für (neue/geänderte) Unterordner unterhalb von base:
+    • von breit zu spezifisch – kein Ordner, der nur genau einen Unterordner und sonst
+      nichts enthält; höchstens MAX_DEPTH Ebenen
+    • mindestens MIN_PER_FOLDER Einträge je Ordner (inkl. Unterordner)
+    • keine Sammelnamen wie „Sonstiges“, „Misc“, „Allgemein“ …"""
+    wanted = set()
+    for rel in rel_paths:
+        parts = [p for p in (rel or "").split("/") if p.strip()]
+        for i in range(1, len(parts) + 1):
+            wanted.add("/".join(parts[:i]).casefold())
+    problems: List[str] = []
+
+    def walk(node: Dict, rel: str, depth: int) -> None:
+        for c in node.get("Children", []) or []:
+            if c.get("WebBookmarkType") != "WebBookmarkTypeList" or c.get("Title") in SKIP_TITLES:
+                continue
+            title = _node_title(c)
+            sub = f"{rel}/{title}" if rel else title
+            if sub.casefold() in wanted:
+                label = f"„{base_path}/{sub}“"
+                if is_generic_name(title):
+                    problems.append(f"{label}: Sammelname – bitte einen konkreten Namen wählen "
+                                    "oder die Einträge thematisch verteilen")
+                n = _count_leaves(c)
+                if n < MIN_PER_FOLDER:
+                    problems.append(f"{label}: nur {n} Eintrag – mindestens {MIN_PER_FOLDER} "
+                                    "nötig, sonst eine Ebene höher einordnen")
+                kids = c.get("Children", []) or []
+                subs = [k for k in kids if k.get("WebBookmarkType") == "WebBookmarkTypeList"]
+                direct = [k for k in kids if k.get("WebBookmarkType") == "WebBookmarkTypeLeaf"]
+                if len(subs) == 1 and not direct:
+                    problems.append(f"{label}: enthält nur den Unterordner „{_node_title(subs[0])}“ "
+                                    "– nicht breiter als sein Inhalt; Ebenen zusammenlegen")
+                if depth > MAX_DEPTH:
+                    problems.append(f"{label}: tiefer als {MAX_DEPTH} Ebenen")
+            walk(c, sub, depth + 1)
+    walk(base, "", 1)
+    return problems
+
+
+def check_new_folders(tabs: List[Tab]) -> List[str]:
+    """Für neu anzulegende Ordner beim Speichern: kein Sammelname, ≥ 2 Tabs je neuem
+    Ordner (inkl. neuer Unterordner darin)."""
+    counts: Dict[str, int] = {}
+    for t in tabs:
+        if t.target_new and t.target_path:
+            parts = t.target_path.split("/")
+            for i in range(1, len(parts) + 1):
+                counts["/".join(parts[:i])] = counts.get("/".join(parts[:i]), 0) + 1
+    new_paths = {t.target_path for t in tabs if t.target_new}
+    problems = []
+    for path in sorted(new_paths):
+        name = path.rsplit("/", 1)[-1]
+        if is_generic_name(name):
+            problems.append(f"„{path}“: Sammelname – bitte einen konkreten Namen wählen")
+        if counts.get(path, 0) < MIN_PER_FOLDER:
+            problems.append(f"„{path}“: nur {counts.get(path, 0)} Tab – ein neuer Ordner braucht "
+                            f"mindestens {MIN_PER_FOLDER}; sonst in einen vorhandenen Ordner")
+    return problems
+
+
 def smart_sort(node: Dict, recursive: bool = True) -> None:
-    """Unterordner zuerst (alphabetisch, „Sonstiges“ & Co. zuletzt), dann Lesezeichen
-    nach Website und Titel. Leselisten und Sonderelemente bleiben unberührt."""
+    """Unterordner zuerst (alphabetisch, Sammelordner wie „Sonstiges“ zuletzt), danach
+    die Lesezeichen nach Website und Titel. Sonderelemente bleiben unberührt."""
     kids = node.get("Children", []) or []
     folders = [c for c in kids if c.get("WebBookmarkType") == "WebBookmarkTypeList"]
     leaves = [c for c in kids if c.get("WebBookmarkType") == "WebBookmarkTypeLeaf"]
     other = [c for c in kids if c not in folders and c not in leaves]
-    folders.sort(key=lambda c: (_node_title(c).strip().casefold() in LAST_FOLDER_NAMES,
+    folders.sort(key=lambda c: (is_generic_name(_node_title(c)),
                                 _natural_key(_node_title(c))))
     leaves.sort(key=lambda c: (_domain(urlsplit(c.get("URLString", "")).hostname or ""),
                                _natural_key(_leaf_title(c))))
@@ -1638,6 +1734,12 @@ def _ensure_subfolder(parent: Dict, rel_path: str, created: List[Dict], base_pat
             created.append({"id": sub["WebBookmarkUUID"], "titel": path})
         node = sub
     return node
+
+
+class StructureError(ValueError):
+    def __init__(self, problems: List[str]):
+        super().__init__("Struktur verletzt die Regeln:\n• " + "\n• ".join(problems))
+        self.problems = problems
 
 
 def restructure_folder(root: Dict, spec: Dict, cfg: Dict) -> Dict:
@@ -1720,6 +1822,11 @@ def restructure_folder(root: Dict, spec: Dict, cfg: Dict) -> Dict:
                 keep.append(c)
             n["Children"] = keep
         prune(base, base_path)
+    if spec.get("pruefen", True):
+        problems = check_structure(base, base_path,
+                                   [i.get("pfad", "") for i in spec.get("baum", [])])
+        if problems:
+            raise StructureError(problems)
     if spec.get("sortieren", True):
         smart_sort(base)
     return {"ordner": base_path, "ordner_id": base.get("WebBookmarkUUID"),
@@ -1784,7 +1891,12 @@ def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
     if change.get("add"):
         tabs = [Tab(window=0, index=0, title=d["title"], url=d["url"], action=BOOKMARK,
                     target_key=d.get("target_key", ""), target_path=d["target_path"],
-                    target_new=d.get("target_new", False)) for d in change["add"]]
+                    target_new=d.get("target_new", False)) for d in change["add"]
+                if d.get("target_path")]
+        if change.get("pruefen", True):
+            problems = check_new_folders(tabs)
+            if problems:
+                raise StructureError(problems)
         entry["ergebnis"] = add_to_existing_folders(root, tabs, cfg, log)
         entry["aktion"] = entry["aktion"] or "Lesezeichen hinzugefügt"
     if change.get("remove") or change.get("remove_folder_ids"):
@@ -2257,7 +2369,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--close-saved", action="store_true",
                     help="Tabs nach dem Speichern als Lesezeichen auch schließen")
     ap.add_argument("--fallback", metavar="NAME",
-                    help="Ordner für Tabs ohne passenden Ordner (Standard: Unsortiert)")
+                    help="Sammelordner für Tabs ohne passenden Ordner (Standard: keiner)")
     ap.add_argument("--report", metavar="DATEI", help="Überblick als Markdown speichern")
     ap.add_argument("--export", metavar="DATEI",
                     help="zusätzlich eine Lesezeichen-HTML-Datei schreiben")
@@ -2281,7 +2393,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--wiederherstellen", metavar="NAME",
                     help="Sicherung zurückspielen (Name aus --sicherungen)")
     ap.add_argument("--sortieren", metavar="ORDNER",
-                    help="Ordner smart sortieren (Unterordner zuerst, dann nach Website/Titel)")
+                    help="Ordner sortieren (Unterordner alphabetisch zuerst, dann nach Website/Titel)")
     ap.add_argument("--bridge-op", help=argparse.SUPPRESS)
     ap.add_argument("--bridge-token", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
@@ -2390,6 +2502,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not do_save:
         return 0
     to_save = plan.by_action(BOOKMARK)
+    if folders:
+        unassigned = [t for t in to_save if not t.target_path]
+        if unassigned:
+            print(f"ℹ️  {len(unassigned)} Tabs ohne Ordner werden nicht gespeichert "
+                  f"(Nr. {', '.join(str(t.num) for t in unassigned)}) – mit z. B. '4>Video' "
+                  "zuordnen.")
+            to_save = [t for t in to_save if t.target_path]
+        problems = check_new_folders(to_save)
+        if problems:
+            print("⚠️  Nicht gespeichert:\n   " + "\n   ".join(problems))
+            return 1
 
     if args.export or not folders:
         out = Path(args.export).expanduser() if args.export else default_export_path()

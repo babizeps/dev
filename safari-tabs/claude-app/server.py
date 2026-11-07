@@ -13,6 +13,7 @@ Nachricht pro Zeile). Nutzt die Logik aus safari_tabs.py.
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import json
 import sys
@@ -29,7 +30,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.6.0"
+SERVER_VERSION = "1.7.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -207,6 +208,10 @@ def tool_save(args: Dict) -> Dict:
         to_save.append(t)
     if not to_save:
         return {"gespeichert": 0, "probleme": problems}
+    rule_problems = st.check_new_folders(to_save)
+    if rule_problems:
+        return {"ok": False, "nichts_geaendert": True, "regelverstoesse": rule_problems,
+                "probleme": problems, "regeln": RULES_TEXT}
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -304,6 +309,15 @@ def _finish(res: Dict, extra: Optional[Dict] = None) -> Dict:
         out["umstrukturiert"] = [_summarize(r) for r in res["umstrukturiert"]]
     out.update(extra or {})
     return out
+
+
+RULES_TEXT = (
+    "Ordner-Regeln: (1) von breit zu spezifisch – oben breite Themen, darunter feinere; ein "
+    "Ordner darf nicht nur aus genau einem Unterordner bestehen; höchstens 3 Ebenen. "
+    "(2) Jeder neue oder neu befüllte Ordner enthält mindestens 2 Einträge (inkl. "
+    "Unterordnern). (3) Keine Sammelnamen wie „Sonstiges“, „Misc“, „Allgemein“, „Diverses“, "
+    "„Andere“, „Neu“ – Einträge, die nirgends passen, bleiben direkt im übergeordneten Ordner "
+    "oder als Tab offen.")
 
 
 def _summarize(r: Dict) -> Dict:
@@ -426,14 +440,15 @@ def tool_subfolders(args: Dict) -> Dict:
     return {
         "ordner": [st.structure_hints(plan, root, p, include) for p in paths],
         "anleitung": (
-            "Entwirf je Ordner eine verschachtelte Struktur (höchstens 3 Ebenen, z. B. "
-            "Musik/Lofi): erst grobe Themen, darunter nur feinere Unterteilungen, wenn ein "
-            "Thema mindestens ~6 Einträge hat; jeder Unterordner mindestens 2 Einträge; kurze "
-            "Namen in der Sprache der vorhandenen Ordner; vorhandene Unterordner "
-            "wiederverwenden oder sinnvoll umbenennen; Einzelstücke bleiben direkt im Ordner "
-            "(pfad \"\"). Neue Tabs (nr) und vorhandene Lesezeichen (id) gemeinsam einordnen. "
-            "Zeige den Baum mit Anzahl und Beispieltiteln, warte auf OK, dann "
-            "safari_ordnerstruktur_anwenden."),
+            "Entwirf je Ordner eine verschachtelte Struktur von breit zu spezifisch "
+            "(höchstens 3 Ebenen, z. B. Musik → Lofi): oben breite Themen, darunter feinere "
+            "Unterteilungen nur, wenn ein Thema genug Einträge für mindestens zwei "
+            "Untergruppen mit je ≥ 2 Einträgen hat. Kurze, konkrete Namen in der Sprache der "
+            "vorhandenen Ordner; vorhandene Unterordner wiederverwenden. Einzelstücke bleiben "
+            "direkt im Ordner (pfad \"\") – niemals in Sammelordner. Neue Tabs (nr) und "
+            "vorhandene Lesezeichen (id) gemeinsam einordnen. Zeige den Baum (Ordner "
+            "alphabetisch) mit Anzahl und Beispieltiteln, warte auf OK, dann "
+            "safari_ordnerstruktur_anwenden. " + RULES_TEXT),
     }
 
 
@@ -465,6 +480,15 @@ def tool_apply_structure(args: Dict) -> Dict:
     spec = {"ordner": f.path, "baum": tree,
             "sortieren": args.get("sortieren", True) is not False,
             "leere_entfernen": args.get("leere_entfernen", True) is not False}
+    # Probelauf auf einer Kopie: Regeln prüfen, bevor Safari beendet wird
+    try:
+        trial = st.restructure_folder(copy.deepcopy(root), spec, STATE.get("cfg")
+                                      or st.load_config(None))
+    except st.StructureError as e:
+        return {"ok": False, "nichts_geaendert": True, "regelverstoesse": e.problems,
+                "regeln": RULES_TEXT}
+    if trial.get("nicht_gefunden"):
+        problems.append(f"{len(trial['nicht_gefunden'])} Lesezeichen-ids nicht im Ordner gefunden")
     out = _apply({"restructure": [spec], "aktion": f"Ordnerstruktur in „{f.path}“"},
                  "Mit safari_rueckgaengig lässt sich die ganze Umstrukturierung zurücknehmen. "
                  + ICLOUD_NOTE.replace("gelöschte Einträge", "verschobene Einträge"))
@@ -506,8 +530,11 @@ TOOLS = {
             "Legt in einem vorhandenen Ordner eine verschachtelte Unterordner-Struktur an, "
             "verschiebt vorhandene Lesezeichen (ids aus safari_unterordner_vorschlagen) und "
             "trägt Tabs (nummern aus safari_tabs_ueberblick) ein, entfernt dadurch leer "
-            "gewordene Unterordner und sortiert alles smart (Unterordner zuerst, alphabetisch, "
-            "„Sonstiges“ zuletzt; Lesezeichen nach Website und Titel). Safari wird kurz "
+            "gewordene Unterordner und sortiert (Unterordner alphabetisch zuerst, dann "
+            "Lesezeichen nach Website und Titel). Prüft vorher die "
+            "Ordner-Regeln (≥ 2 Einträge je Ordner, keine Sammelnamen wie „Sonstiges“, kein "
+            "Ordner nur mit einem Unterordner) – bei Verstößen wird nichts geändert und "
+            "'regelverstoesse' zurückgegeben. Safari wird kurz "
             "beendet, vorher gesichert, komplett rückgängig machbar. Nur nach ausdrücklicher "
             "Bestätigung des Nutzers aufrufen."),
         "inputSchema": {"type": "object", "properties": {
@@ -528,8 +555,9 @@ TOOLS = {
     "safari_ordner_sortieren": {
         "fn": tool_sort,
         "description": (
-            "Sortiert einen Lesezeichen-Ordner samt Unterordnern smart: Unterordner zuerst "
-            "(alphabetisch, „Sonstiges“ zuletzt), dann Lesezeichen nach Website und Titel. "
+            "Sortiert einen Lesezeichen-Ordner samt Unterordnern: Unterordner zuerst "
+            "(alphabetisch, vorhandene Sammelordner wie „Sonstiges“ zuletzt), dann "
+            "Lesezeichen nach Website und Titel. "
             "Rückgängig machbar. Nur nach Bestätigung."),
         "inputSchema": {"type": "object", "properties": {"ordner": {"type": "string"}},
                         "required": ["ordner"]},
@@ -687,7 +715,7 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
    Frage mich dann, ob diese Tabs geschlossen werden sollen. Ich kann Nummern hinzufügen oder herausnehmen.
    Erst nach meinem OK: `safari_tabs_schliessen`. Mac-Tabs werden dabei automatisch geschlossen. Für Tabs auf iPhone/iPad gib mir danach eine kurze Checkliste pro Gerät (die muss ich selbst schließen) – erwähne auch die Einstellung „Tabs automatisch schließen“ am iPhone (Einstellungen → Apps → Safari → Tabs schließen).
 
-4. **Einsortieren:** Zeige eine Tabelle mit Nr., Titel und Ziel-Ordner für die übrigen Tabs, die gespeichert werden sollen, gruppiert nach Ordner. Verwende meine vorhandenen Ordner aus der Ordnerliste. Für Tabs mit Vorschlag „Unsortiert (neu)“ oder unpassendem Vorschlag wähle selbst den passendsten vorhandenen Ordner anhand von Titel und URL. Schlage einen neuen Ordner nur vor, wenn wirklich nichts passt, und kennzeichne ihn als neu. Web-Apps mit Empfehlung „behalten“ bleiben offen.
+4. **Einsortieren:** Zeige eine Tabelle mit Nr., Titel und Ziel-Ordner für die übrigen Tabs, die gespeichert werden sollen, gruppiert nach Ordner. Verwende meine vorhandenen Ordner aus der Ordnerliste. Für Tabs ohne `ordner_vorschlag` oder mit unpassendem Vorschlag wähle selbst den passendsten vorhandenen Ordner anhand von Titel und URL. Einen neuen (Unter-)Ordner schlägst du nur vor, wenn mindestens 2 Tabs hineinpassen, mit konkretem Namen – nie „Sonstiges“, „Unsortiert“, „Misc“ o. Ä. Passt ein einzelner Tab nirgends, schlag vor, ihn offen zu lassen oder in den thematisch nächsten vorhandenen Ordner zu legen. Web-Apps mit Empfehlung „behalten“ bleiben offen.
    Frage mich, ob ich so speichern soll und ob die gespeicherten Tabs danach geschlossen werden sollen. Hinweis: Safari wird dafür kurz beendet und wieder geöffnet. Über iCloud erscheinen die Lesezeichen auch auf iPhone/iPad. „Danach schließen“ wirkt nur auf Mac-Tabs.
    Erst nach meinem OK: `safari_lesezeichen_speichern` (neue Ordner nur mit `neue_ordner_erlaubt: true`, wenn ich zugestimmt habe).
 
@@ -712,17 +740,20 @@ PROMPTS = {
             "schon in den Ordnern liegen. Antworte auf Deutsch.\n"
             "1. Rufe `safari_tabs_ueberblick` und dann `safari_unterordner_vorschlagen` auf "
             "(ohne ordner = alle Ziel-Ordner; einzelne Ordner wie „Video“ gehen auch).\n"
-            "2. Entwirf pro Ordner eine Struktur mit höchstens 3 Ebenen: oben grobe Themen, "
-            "darunter feinere Unterteilungen nur bei genug Einträgen (ab ~6), jeder Unterordner "
-            "mit mindestens 2 Einträgen, kurze Namen in der Sprache meiner Ordner, vorhandene "
-            "Unterordner wiederverwenden. Einzelstücke bleiben direkt im Ordner.\n"
+            "2. Entwirf pro Ordner eine Struktur von breit zu spezifisch (höchstens 3 Ebenen): "
+            "oben breite Themen, darunter feinere Unterteilungen nur, wenn es mindestens zwei "
+            "Untergruppen mit je ≥ 2 Einträgen gibt. Jeder Ordner hat mindestens 2 Einträge. "
+            "Konkrete, kurze Namen in der Sprache meiner Ordner – keine Sammelnamen wie "
+            "„Sonstiges“, „Misc“, „Allgemein“. Einzelstücke bleiben direkt im Ordner. "
+            "Vorhandene Unterordner wiederverwenden.\n"
             "3. Zeig mir den Baum eingerückt mit Anzahl und 2–3 Beispieltiteln, z. B.\n"
             "   Video\n   ├─ Musik (12)\n   │  ├─ Lofi (5)\n   │  └─ Jazz (4)\n"
             "   └─ Programmieren (7)\n"
             "   und sag dazu, wie viele vorhandene Lesezeichen verschoben würden.\n"
             "4. Ich kann umbenennen, zusammenlegen, Ebenen streichen oder Einträge verschieben.\n"
             "5. Erst nach meinem OK: `safari_ordnerstruktur_anwenden` pro Ordner (Safari wird "
-            "kurz beendet). Danach ist alles smart sortiert.\n"
+            "kurz beendet). Meldet das Werkzeug `regelverstoesse`, wurde nichts geändert: "
+            "passe den Baum an, zeig mir die Änderung und frag erneut.\n"
             "6. Erwähne, dass „mach das rückgängig“ (`safari_rueckgaengig`) alles zurücknimmt."),
     },
     "lesezeichen-korrigieren": {

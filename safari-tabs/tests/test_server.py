@@ -152,8 +152,20 @@ class ServerSessionTest(unittest.TestCase):
             "eintraege": [{"nummer": 6, "ordner": "Restaurants"}],
             "neue_ordner_erlaubt": True})])
         out = json.loads(res[0]["result"]["content"][0]["text"])
+        self.assertTrue(out["nichts_geaendert"])                 # nur 1 Tab im neuen Ordner
+        self.assertIn("mindestens 2", out["regelverstoesse"][0])
+        self.assertIsNone(self.fake.saved)
+        res = self.rpc([self.call(3, "safari_lesezeichen_speichern", {
+            "eintraege": [{"nummer": 6, "ordner": "Sonstiges"}, {"nummer": 2, "ordner": "Sonstiges"}],
+            "neue_ordner_erlaubt": True})])
+        out = json.loads(res[0]["result"]["content"][0]["text"])
+        self.assertIn("Sammelname", out["regelverstoesse"][0])
+        res = self.rpc([self.call(4, "safari_lesezeichen_speichern", {
+            "eintraege": [{"nummer": 6, "ordner": "Restaurants"}, {"nummer": 2, "ordner": "Restaurants"}],
+            "neue_ordner_erlaubt": True})])
+        out = json.loads(res[0]["result"]["content"][0]["text"])
         self.assertEqual(out["neue_ordner"], ["Restaurants"])
-        self.assertEqual(self.fake.saved, {"Restaurants": 1})
+        self.assertEqual(self.fake.saved, {"Restaurants": 2})
 
     def test_tool_needs_overview_first(self):
         res = self.rpc([self.call(1, "safari_tabs_schliessen", {"nummern": [1]})])
@@ -257,13 +269,14 @@ class ServerSessionTest(unittest.TestCase):
                                                           "eintraege": [
                 {"nummer": 1, "ordner": "Video/Musik"},
                 {"nummer": 2, "ordner": "Video/Musik"},
-                {"nummer": 3, "ordner": "Video/Programmieren"}]}),
+                {"nummer": 3, "ordner": "Video/Programmieren"},
+                {"nummer": 4, "ordner": "Video/Programmieren"}]}),
         ])
         out = json.loads(res[0]["result"]["content"][0]["text"])
         self.assertEqual(out["neue_ordner"], ["Lesezeichenmenü/Video/Musik",
                                               "Lesezeichenmenü/Video/Programmieren"])
         self.assertEqual(self.fake.saved, {"Lesezeichenmenü/Video/Musik": 2,
-                                           "Lesezeichenmenü/Video/Programmieren": 1})
+                                           "Lesezeichenmenü/Video/Programmieren": 2})
         menu = self.fake.root["Children"][1]["Children"]
         video_node = next(c for c in menu if c["Title"] == "Video")
         subs = [c["Title"] for c in video_node["Children"]
@@ -293,22 +306,32 @@ class ServerSessionTest(unittest.TestCase):
                             self.call(2, "safari_unterordner_vorschlagen", {"ordner": "Video"})])
             hint = json.loads(res[1]["result"]["content"][0]["text"])["ordner"][0]
             old_id = next(e["id"] for e in hint["eintraege"] if "id" in e)
+            # Regelverstoß: „Programmieren“ hätte nur einen Eintrag → nichts geändert
             res = self.rpc([self.call(3, "safari_ordnerstruktur_anwenden", {
                 "ordner": "Video", "baum": [
                     {"pfad": "Musik/Lofi", "tab_nummern": [1, 2]},
                     {"pfad": "Programmieren", "tab_nummern": [3]},
                     {"pfad": "Musik", "lesezeichen_ids": [old_id]}]})])
             out = json.loads(res[0]["result"]["content"][0]["text"])
+            self.assertTrue(out["nichts_geaendert"])
+            self.assertTrue(any("Programmieren" in p for p in out["regelverstoesse"]))
+            self.assertEqual(st.BOOKMARKS_PLIST.read_bytes(), original)
+            res = self.rpc([self.call(3, "safari_ordnerstruktur_anwenden", {
+                "ordner": "Video", "baum": [
+                    {"pfad": "Musik/Lofi", "tab_nummern": [1, 2]},
+                    {"pfad": "", "tab_nummern": [3]},
+                    {"pfad": "Musik", "lesezeichen_ids": [old_id]}]})])
+            out = json.loads(res[0]["result"]["content"][0]["text"])
             summ = out["umstrukturiert"][0]
             self.assertEqual(summ["neue_unterordner"], ["Lesezeichenmenü/Video/Musik",
-                                                        "Lesezeichenmenü/Video/Musik/Lofi",
-                                                        "Lesezeichenmenü/Video/Programmieren"])
+                                                        "Lesezeichenmenü/Video/Musik/Lofi"])
             self.assertEqual(summ["verschoben"], 1)
             self.assertEqual(summ["hinzugefuegt"], 3)
             self.assertNotIn("vorher", json.dumps(out))
             root = plistlib.loads(st.BOOKMARKS_PLIST.read_bytes())
             video = next(c for c in root["Children"][1]["Children"] if c["Title"] == "Video")
-            self.assertEqual([c["Title"] for c in video["Children"]], ["Musik", "Programmieren"])
+            self.assertEqual([c.get("Title") or st._leaf_title(c) for c in video["Children"]],
+                             ["Musik", "Python decorators"])
             musik = video["Children"][0]
             self.assertEqual([c.get("Title") or st._leaf_title(c) for c in musik["Children"]],
                              ["Lofi", "x"])            # Unterordner zuerst, dann Lesezeichen

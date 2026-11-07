@@ -61,16 +61,24 @@ Schreib „Mach passende Unterordner für meine Tabs“ oder „Räum meinen Ord
 ```
 Video
 ├─ Musik (12)
-│  ├─ Lofi (5)
-│  └─ Jazz (4)
+│  ├─ Jazz (4)
+│  └─ Lofi (5)
 ├─ Programmieren (7)
-└─ Sonstiges (2)
+└─ (2 Einzelstücke direkt in Video)
 ```
 
-- Feinere Unterordner gibt es nur bei genug Einträgen, jeder Unterordner hat mindestens 2. Vorhandene Unterordner werden wiederverwendet.
+Feste Regeln, die das Tool selbst prüft:
+
+- **Von breit zu spezifisch:** Oben stehen breite Themen, darunter feinere. Ein Ordner, der nur aus genau einem Unterordner besteht, wird nicht angelegt. Höchstens drei Ebenen.
+- **Mindestens 2 Einträge** in jedem neuen oder neu befüllten Ordner (Unterordner zählen mit).
+- **Keine Sammelnamen** wie „Sonstiges“, „Misc“, „Allgemein“, „Diverses“, „Andere“, „Neu“. Einzelstücke bleiben direkt im übergeordneten Ordner.
+
+Verletzt ein Vorschlag eine Regel, wird **nichts geändert**. Claude bessert den Baum nach und fragt dich erneut.
+
+- Vorhandene Unterordner werden wiederverwendet.
 - Du kannst den Vorschlag im Chat ändern (umbenennen, zusammenlegen, Ebenen streichen). Angewendet wird erst nach deinem OK.
 - Unterordner, die durch das Umsortieren leer werden, verschwinden. Leere Ordner, die du selbst angelegt hast, bleiben.
-- **Smart sortiert:** Unterordner zuerst und alphabetisch, „Sonstiges“ und Ähnliches ganz unten, dann die Lesezeichen nach Website und Titel. „Sortier meinen Ordner Article“ geht auch einzeln.
+- **Sortiert:** Unterordner zuerst und alphabetisch (Sammelordner, die du schon hast, ganz unten), dann die Lesezeichen nach Website und Titel. „Sortier meinen Ordner Article“ geht auch einzeln.
 - **„Mach das rückgängig“** setzt den ganzen Ordner auf den Stand davor zurück. Hast du den Ordner inzwischen selbst geändert, fragt Claude vorher nach.
 
 ## Fehler korrigieren

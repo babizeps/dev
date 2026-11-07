@@ -34,7 +34,7 @@ Für jeden Tab werden alle deine Lesezeichen-Ordner (inkl. Unterordner) bewertet
 2. **Stichwort:** Ein Wort aus dem Ordnernamen steht im Titel oder in der Adresse des Tabs (Ordner „Python“ ← „Sorting HOW TO — Python docs“).
 3. **Thema:** Der Ordnername passt zum Thema der Seite (Ordner „Kochen“ ← chefkoch.de, „Reisen“ ← booking.com, „Dev“ ← github.com …).
 
-Bei mehreren Treffern gewinnt der spezifischere Unterordner. Tabs ohne passenden Ordner landen in **Unsortiert** (wird nur bei Bedarf angelegt, Name änderbar mit `--fallback`). Die Leseliste wird ignoriert.
+Bei mehreren Treffern gewinnt der spezifischere Unterordner. Tabs ohne passenden Ordner bekommen keinen Vorschlag und werden nicht gespeichert, bis du sie zuordnest (z. B. `4>Video`). Es gibt keinen automatischen Sammelordner. Wer einen will, gibt ihn mit `--fallback NAME` an. Neue Ordner brauchen mindestens 2 Tabs und einen konkreten Namen (kein „Sonstiges“ o. Ä.). Die Leseliste wird ignoriert.
 
 ## Einrichtung (einmalig)
 
@@ -80,7 +80,7 @@ Zum Eintragen beendet das Tool Safari kurz (sonst würde Safari die Änderung ü
 |---|---|
 | `-y`, `--yes` | Empfehlung ohne Rückfragen umsetzen |
 | `--close-saved` | eingeordnete Tabs danach auch schließen |
-| `--fallback NAME` | Ordner für Tabs ohne Treffer (Standard: „Unsortiert“) |
+| `--fallback NAME` | Sammelordner für Tabs ohne Treffer (Standard: keiner) |
 | `--report bericht.md` | Überblick als Markdown speichern |
 | `--export datei.html` | zusätzlich eine Lesezeichen-HTML-Datei schreiben |
 | `--config regeln.json` | eigene Regeln (siehe unten) |

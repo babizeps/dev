@@ -74,9 +74,10 @@ class FolderMatchTest(unittest.TestCase):
         self.assertEqual(self.by[5].target_path, "Lesezeichenmenü/Programmieren/Python")
         self.assertEqual(self.by[9].target_path, "Musik & Videos")                   # youtube
         self.assertEqual(self.by[12].target_path, "Kochen")                          # Thema Rezepte
-        self.assertTrue(self.by[13].target_new)                                      # Blog
-        self.assertEqual(self.by[13].target_path, "Unsortiert")
-        self.assertTrue(self.by[8].target_new)                                       # Wikipedia
+        # kein Sammelordner mehr: ohne Treffer kein Vorschlag
+        self.assertEqual((self.by[13].target_path, self.by[13].target_new), ("", False))
+        self.assertIn("kein passender Ordner", self.by[13].target_why)
+        self.assertEqual(self.by[8].target_path, "")                                 # Wikipedia
 
     def test_write_into_existing_folders(self):
         save = self.plan.by_action(st.BOOKMARK)
@@ -86,7 +87,8 @@ class FolderMatchTest(unittest.TestCase):
             result, backup = st.write_bookmarks_plist(save, self.cfg, p)
             self.assertTrue(backup.exists())
             self.assertEqual(result["Kochen"], 1)
-            self.assertEqual(result["Unsortiert"], 2)
+            self.assertNotIn("", result)                    # Tabs ohne Ordner übersprungen
+            self.assertEqual(sum(result.values()), 4)
             new = plistlib.loads(p.read_bytes())
             kochen = next(c for c in new["Children"] if c.get("Title") == "Kochen")
             self.assertEqual(kochen["Children"][0]["URLString"],
@@ -227,7 +229,7 @@ class TerminalBridgeTest(unittest.TestCase):
         self.assertFalse(cloud.exists())
 
         t = st.Tab(0, 0, "Lasagne", "https://www.chefkoch.de/rezepte/1/lasagne.html")
-        st.set_new_target(t, "Kochen")
+        t.target_path = "Kochen"                            # vorhandener Ordner
         res = st.run_via_terminal("edit", {"add": [st._tab_to_dict(t)]})
         self.assertEqual(res["ergebnis"], {"Kochen": 1})
         self.assertEqual(len(res["hinzugefuegt"]), 1)
@@ -297,13 +299,14 @@ class CorrectionTest(unittest.TestCase):
     def test_undo_last_save_removes_only_its_bookmarks(self):
         self.add([("Spy", "https://www.youtube.com/watch?v=spy", "Video", False),
                   ("WSJ", "https://wsj.com/ai", "Article", False),
-                  ("Neu", "https://neu.example/", "Testordner", True)])
+                  ("Neu", "https://neu.example/", "Testordner", True),
+                  ("Neu 2", "https://neu2.example/", "Testordner", True)])
         self.assertEqual(len(self.urls_in("Video")), 2)
         entry = st.last_undoable()
-        self.assertEqual(len(entry["hinzugefuegt"]), 3)
+        self.assertEqual(len(entry["hinzugefuegt"]), 4)
         res = st.edit_bookmarks(st.undo_change_for(entry), self.path)
         st.mark_undone(entry)
-        self.assertEqual(len(res["entfernt"]), 3)
+        self.assertEqual(len(res["entfernt"]), 4)
         self.assertEqual(self.urls_in("Video"), ["https://www.youtube.com/watch?v=ok"])
         self.assertEqual(self.urls_in("Article"), ["https://example.com/a"])
         titles = [c.get("Title") for c in self.root()["Children"]]
@@ -350,12 +353,20 @@ class CorrectionTest(unittest.TestCase):
         self.assertIsNone(f)
         self.assertEqual(new, "Lesezeichenmenü/Video/Musik/Live")
         t = st.Tab(0, 0, "Konzert", "https://www.youtube.com/watch?v=live")
+        t2 = st.Tab(0, 0, "Konzert 2", "https://www.youtube.com/watch?v=live2")
         st.set_new_target(t, new)
-        entry = st.edit_bookmarks({"add": [st._tab_to_dict(t)]}, self.path)
+        st.set_new_target(t2, new)
+        # nur ein Tab im neuen Unterordner → abgelehnt, nichts geändert
+        before = self.path.read_bytes()
+        with self.assertRaises(st.StructureError):
+            st.edit_bookmarks({"add": [st._tab_to_dict(t)]}, self.path)
+        self.assertEqual(self.path.read_bytes(), before)
+        entry = st.edit_bookmarks({"add": [st._tab_to_dict(t), st._tab_to_dict(t2)]}, self.path)
         self.assertEqual([o["titel"] for o in entry["ordner_neu"]],
                          ["Lesezeichenmenü/Video/Musik", "Lesezeichenmenü/Video/Musik/Live"])
         self.assertEqual(self.urls_in("Lesezeichenmenü/Video/Musik/Live"),
-                         ["https://www.youtube.com/watch?v=live"])
+                         ["https://www.youtube.com/watch?v=live",
+                          "https://www.youtube.com/watch?v=live2"])
         # zweiter Eintrag in denselben (jetzt vorhandenen) Unterordner
         folders = st.collect_folders(self.root())
         f, new = st.resolve_target("Musik/Live", folders)
@@ -376,6 +387,37 @@ class CorrectionTest(unittest.TestCase):
         f, _ = st.resolve_target("Book/Musik", folders)
         self.assertEqual(f.key, "b")
         self.assertTrue(folder)
+
+    def test_rules_reject_generic_thin_and_narrow_folders(self):
+        before = self.path.read_bytes()
+        hints = st.structure_hints(None, self.root(), "Lesezeichenmenü/Video")
+        vid = hints["eintraege"][0]["id"]
+        bad = [
+            # Sammelname
+            [{"pfad": "Sonstiges", "ids": [vid], "neu": [{"title": "A", "url": "https://a.de/1"}]}],
+            # nur ein Eintrag
+            [{"pfad": "Musik", "ids": [vid]}],
+            # Ordner besteht nur aus genau einem Unterordner (nicht breit → spezifisch)
+            [{"pfad": "Musik/Lofi", "ids": [vid], "neu": [{"title": "B", "url": "https://b.de/1"}]}],
+        ]
+        for baum in bad:
+            with self.assertRaises(st.StructureError):
+                st.edit_bookmarks({"restructure": [{"ordner": "Lesezeichenmenü/Video",
+                                                    "baum": baum}]}, self.path)
+            self.assertEqual(self.path.read_bytes(), before)
+        for name in ("Sonstiges", "misc", "Neuer Ordner 2", "Andere Videos", "Allgemein"):
+            self.assertTrue(st.is_generic_name(name), name)
+        for name in ("Lofi", "Programmieren", "KI", "Datenschutz"):
+            self.assertFalse(st.is_generic_name(name), name)
+
+    def test_smart_sort_siblings_alphabetical_not_by_size(self):
+        from make_sample_plist import folder, leaf
+        node = folder("X", [folder("Klein", [leaf("https://a.de/1", "a")]),
+                            folder("Groß", [leaf("https://a.de/2", "b"), leaf("https://a.de/3", "c"),
+                                            folder("Tief", [leaf("https://a.de/4", "d")])]),
+                            folder("Mittel", [leaf("https://a.de/5", "e"), leaf("https://a.de/6", "f")])])
+        st.smart_sort(node)
+        self.assertEqual([c["Title"] for c in node["Children"]], ["Groß", "Klein", "Mittel"])
 
     def test_smart_sort(self):
         from make_sample_plist import folder, leaf
@@ -402,7 +444,8 @@ class CorrectionTest(unittest.TestCase):
         self.assertEqual(hints["eintraege"][1]["jetzt_in"], "Alt")
         entry = st.edit_bookmarks({"restructure": [{
             "ordner": "Lesezeichenmenü/Video",
-            "baum": [{"pfad": "Musik/Jazz", "ids": [ids["Jazz Live"]]},
+            "baum": [{"pfad": "Musik/Jazz", "ids": [ids["Jazz Live"]],
+                      "neu": [{"title": "Jazz Session", "url": "https://vimeo.com/jazz"}]},
                      {"pfad": "Musik", "ids": [ids["Gutes Video"]],
                       "neu": [{"title": "Neu", "url": "https://vimeo.com/1"}]}]}]}, self.path)
         r = entry["umstrukturiert"][0]
