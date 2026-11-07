@@ -752,13 +752,14 @@ def read_cloud_tabs(db_path: Optional[Path] = None,
     return tabs, dev_list
 
 
-def read_all_tabs(include_cloud: bool = True) -> Tuple[List[Tab], List[Dict], Optional[str]]:
+def read_all_tabs(include_cloud: bool = True, cloud_db: Optional[Path] = None
+                  ) -> Tuple[List[Tab], List[Dict], Optional[str]]:
     """Mac-Tabs + (optional) iCloud-Tabs. Gibt (Tabs, Geräte, Hinweis) zurück."""
     tabs = read_safari_tabs()
     if not include_cloud:
         return tabs, [], None
     try:
-        remote, devices = read_cloud_tabs(exclude_devices=[local_computer_name()])
+        remote, devices = read_cloud_tabs(cloud_db, exclude_devices=[local_computer_name()])
     except PermissionError:
         return tabs, [], ("iPhone-/iPad-Tabs nicht lesbar: Festplattenvollzugriff fehlt "
                           "(Systemeinstellungen → Datenschutz & Sicherheit → "
@@ -1055,6 +1056,129 @@ def access_diagnosis() -> Dict:
                   "Festplattenvollzugriff für dieses Programm, deshalb reicht die "
                   "Freigabe für „Claude“ allein nicht."),
     }
+
+
+# --------------------------------------------------------------------------
+# Umweg über Terminal: Wenn das aufrufende Programm (z. B. die Erweiterung in
+# der Claude-App) keinen Festplattenvollzugriff bekommt, erledigt Terminal –
+# das in der Liste „Festplattenvollzugriff“ freigegeben ist – das Lesen und
+# Schreiben der Lesezeichen. Austausch über ~/.safari-tabs/.
+# --------------------------------------------------------------------------
+BRIDGE_DIR = Path.home() / ".safari-tabs"
+BRIDGE_TIMEOUT = 45
+TERMINAL_FDA_HINT = (
+    "Terminal hat keinen Festplattenvollzugriff. Bitte: Systemeinstellungen → "
+    "Datenschutz & Sicherheit → Festplattenvollzugriff → „Terminal“ einschalten "
+    "(falls nicht in der Liste: „+“ → Programme → Dienstprogramme → Terminal). "
+    "Ein Neustart von Terminal ist nicht nötig, wenn es gerade nicht läuft – "
+    "sonst Terminal mit ⌘Q beenden.")
+
+
+class BridgeError(Exception):
+    pass
+
+
+def run_via_terminal(op: str, payload: Optional[Dict] = None,
+                     timeout: float = BRIDGE_TIMEOUT) -> Dict:
+    BRIDGE_DIR.mkdir(exist_ok=True)
+    token = uuid.uuid4().hex[:12]
+    inp = BRIDGE_DIR / f"{token}.in.json"
+    out = BRIDGE_DIR / f"{token}.out.json"
+    if payload is not None:
+        inp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    label = {"copy": "Lesezeichen lesen", "apply": "Lesezeichen eintragen"}.get(op, op)
+    script = BRIDGE_DIR / f"safari-tabs-{op}.command"
+    script.write_text(
+        "#!/bin/bash\n"
+        f'echo "Safari-Tabs: {label} …"\n'
+        f'"{sys.executable}" "{Path(__file__).resolve()}" '
+        f"--bridge-op {op} --bridge-token {token}\n"
+        'echo; echo "Fertig – dieses Fenster kannst du schließen."\n',
+        encoding="utf-8")
+    script.chmod(0o755)
+    subprocess.run(["open", "-a", "Terminal", str(script)])
+    deadline = time.time() + timeout
+    try:
+        while time.time() < deadline:
+            if out.exists():
+                time.sleep(0.2)
+                res = json.loads(out.read_text(encoding="utf-8"))
+                if not res.get("ok"):
+                    raise BridgeError(res.get("error") or "Unbekannter Fehler im Terminal")
+                return res
+            time.sleep(0.3)
+        raise BridgeError("Terminal hat nicht rechtzeitig geantwortet. Ist im Terminal-"
+                          "Fenster eine Fehlermeldung zu sehen?")
+    finally:
+        for f in (inp, out):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def _tab_to_dict(t: Tab) -> Dict:
+    return {"title": t.title, "url": t.url, "target_key": t.target_key,
+            "target_path": t.target_path, "target_new": t.target_new}
+
+
+def bridge_main(op: str, token: str) -> int:
+    """Läuft im Terminal (mit dessen Festplattenvollzugriff)."""
+    out = BRIDGE_DIR / f"{token}.out.json"
+    try:
+        if op == "copy":
+            shutil.copy2(BOOKMARKS_PLIST, BRIDGE_DIR / "Bookmarks.plist")
+            cloud = next((p for p in CLOUD_TABS_DBS if p.exists()), None)
+            cdir = BRIDGE_DIR / "cloud"
+            if cloud:
+                cdir.mkdir(exist_ok=True)
+                for suffix in ("", "-wal", "-shm"):
+                    f = Path(str(cloud) + suffix)
+                    if f.exists():
+                        shutil.copy2(f, cdir / (cloud.name + suffix))
+            res = {"ok": True, "cloud": bool(cloud)}
+            print("✓ Lesezeichen gelesen")
+        elif op == "apply":
+            data = json.loads((BRIDGE_DIR / f"{token}.in.json").read_text(encoding="utf-8"))
+            tabs = [Tab(window=0, index=0, title=d["title"], url=d["url"], action=BOOKMARK,
+                        target_key=d["target_key"], target_path=d["target_path"],
+                        target_new=d["target_new"]) for d in data["tabs"]]
+            result, backup = write_bookmarks_plist(tabs, load_config(None), BOOKMARKS_PLIST)
+            res = {"ok": True, "result": result, "backup": backup.name}
+            print(f"✓ {sum(result.values())} Lesezeichen eingetragen")
+        else:
+            res = {"ok": False, "error": f"unbekannte Aktion {op}"}
+    except PermissionError:
+        res = {"ok": False, "error": TERMINAL_FDA_HINT}
+        print("✗ " + TERMINAL_FDA_HINT)
+    except Exception as e:  # noqa: BLE001
+        res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        print("✗ " + res["error"])
+    out.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+    return 0 if res["ok"] else 1
+
+
+def load_bookmarks_any(allow_terminal: bool = True
+                       ) -> Tuple[Optional[Dict], str, Optional[Path]]:
+    """(Lesezeichen, Modus, Pfad der iCloud-Tabs-Kopie). Modus: direkt | terminal | ''."""
+    if _probe(BOOKMARKS_PLIST) == "ok":
+        return load_bookmarks(BOOKMARKS_PLIST, quiet=True), "direkt", None
+    if not allow_terminal or sys.platform != "darwin":
+        return None, "", None
+    res = run_via_terminal("copy")
+    copy = BRIDGE_DIR / "Bookmarks.plist"
+    root = load_bookmarks(copy, quiet=True)
+    cloud = BRIDGE_DIR / "cloud" / CLOUD_TABS_DBS[0].name if res.get("cloud") else None
+    return root, "terminal", cloud
+
+
+def cleanup_bridge_copies() -> None:
+    """Kopien von Lesezeichen/iCloud-Tabs wieder löschen (Datenschutz)."""
+    for f in [BRIDGE_DIR / "Bookmarks.plist", *(BRIDGE_DIR / "cloud").glob("*")]:
+        try:
+            f.unlink()
+        except OSError:
+            pass
 
 
 def open_access_settings() -> None:
@@ -1408,7 +1532,7 @@ def step_bookmarks(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[boo
 # --------------------------------------------------------------------------
 # Safari kurz beenden, Lesezeichen schreiben, Safari wieder öffnen
 # --------------------------------------------------------------------------
-def save_into_safari(tabs_to_save: List[Tab], cfg: Dict) -> bool:
+def save_into_safari(tabs_to_save: List[Tab], cfg: Dict, via_terminal: bool = False) -> bool:
     remaining = [t.url for t in read_safari_tabs() if not is_empty(t)]
     print("\nSafari wird kurz beendet, damit die Lesezeichen sicher eingetragen werden …")
     osascript("function run(){ Application('Safari').quit(); }")
@@ -1423,9 +1547,19 @@ def save_into_safari(tabs_to_save: List[Tab], cfg: Dict) -> bool:
     time.sleep(0.5)
     ok = True
     try:
-        result, backup = write_bookmarks_plist(tabs_to_save, cfg)
+        try:
+            if via_terminal:
+                raise PermissionError
+            result, backup_name = write_bookmarks_plist(tabs_to_save, cfg, BOOKMARKS_PLIST)
+            backup_name = backup_name.name
+        except PermissionError:
+            if sys.platform != "darwin":
+                raise
+            print("Kein direkter Zugriff – Lesezeichen werden über Terminal eingetragen …")
+            res = run_via_terminal("apply", {"tabs": [_tab_to_dict(t) for t in tabs_to_save]})
+            result, backup_name = res["result"], res["backup"]
         total = sum(result.values())
-        print(f"★ {total} Lesezeichen eingetragen (Sicherung: {backup.name})")
+        print(f"★ {total} Lesezeichen eingetragen (Sicherung: {backup_name})")
         for path, n in sorted(result.items()):
             print(f"    {path}: +{n}")
         if total < len(tabs_to_save):
@@ -1434,6 +1568,9 @@ def save_into_safari(tabs_to_save: List[Tab], cfg: Dict) -> bool:
         ok = False
         print("⚠️  Kein Schreibzugriff auf Bookmarks.plist – Terminal braucht "
               "Festplattenvollzugriff.", file=sys.stderr)
+    except BridgeError as e:
+        ok = False
+        print(f"⚠️  {e}")
     finally:
         subprocess.run(["open", "-a", "Safari"])
         time.sleep(3)
@@ -1502,7 +1639,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="Tabs von iPhone/iPad (iCloud) nicht einbeziehen")
     ap.add_argument("--cloud-db", metavar="DB",
                     help="andere CloudTabs.db verwenden (Test)")
+    ap.add_argument("--bridge-op", help=argparse.SUPPRESS)
+    ap.add_argument("--bridge-token", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
+
+    if args.bridge_op:
+        return bridge_main(args.bridge_op, args.bridge_token or "x")
 
     if args.dump_config:
         print(json.dumps(DEFAULT_CONFIG, indent=2, ensure_ascii=False))

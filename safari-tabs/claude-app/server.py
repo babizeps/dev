@@ -29,7 +29,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.2.0"
+SERVER_VERSION = "1.3.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -41,14 +41,23 @@ STATE: Dict[str, Any] = {"plan": None, "folders": [], "cfg": None}
 # --------------------------------------------------------------------------
 def tool_overview(args: Dict) -> Dict:
     cfg = st.load_config(None)
-    tabs, devices, cloud_note = st.read_all_tabs(
-        include_cloud=args.get("andere_geraete", True) is not False)
-    root = st.load_bookmarks(quiet=True)
+    bridge_error = None
+    try:
+        root, mode, cloud_copy = st.load_bookmarks_any(allow_terminal=True)
+    except st.BridgeError as e:
+        root, mode, cloud_copy, bridge_error = None, "", None, str(e)
+    try:
+        tabs, devices, cloud_note = st.read_all_tabs(
+            include_cloud=args.get("andere_geraete", True) is not False,
+            cloud_db=cloud_copy)
+    finally:
+        if mode == "terminal":
+            st.cleanup_bridge_copies()
     folders = st.collect_folders(root) if root else []
     plan = st.analyze(tabs, cfg, st.bookmark_index(root, cfg["tracking_params"]))
     if folders:
         st.assign_folders(plan, folders, cfg)
-    STATE.update(plan=plan, folders=folders, cfg=cfg)
+    STATE.update(plan=plan, folders=folders, cfg=cfg, mode=mode)
 
     hosts: Dict[str, int] = {}
     for t in tabs:
@@ -84,12 +93,14 @@ def tool_overview(args: Dict) -> Dict:
             "offen_lassen": len(plan.by_action(st.KEEP)),
         },
         "lesezeichen_zugriff": bool(root),
+        "zugriff_ueber": {"direkt": "direkt", "terminal": "Terminal (Umweg)"}.get(mode, "keiner"),
         "icloud_tabs_hinweis": cloud_note,
-        "hinweis": None if root else (
-            "Kein Zugriff auf die Safari-Lesezeichen. Die Freigabe für die App „Claude“ "
-            "reicht nicht: Das Python-Programm der Erweiterung braucht selbst den "
-            "Festplattenvollzugriff. Rufe safari_zugriff_pruefen auf (mit "
-            "einstellungen_oeffnen=true) und führe den Nutzer durch die Anleitung."),
+        "hinweis": (
+            "Die Lesezeichen wurden über ein kurz geöffnetes Terminal-Fenster gelesen, weil "
+            "die Erweiterung selbst keinen Festplattenvollzugriff hat. Das Fenster kann "
+            "geschlossen werden." if mode == "terminal" else None) if root else (
+            "Kein Zugriff auf die Safari-Lesezeichen – auch nicht über Terminal. "
+            + (bridge_error or "") + " Danach erneut versuchen."),
         "zugriff": None if root else st.access_diagnosis(),
         "ordner": [{"nr": f.num, "pfad": f.path, "lesezeichen": f.leaves} for f in folders],
         "tabs": [tab_info(t) for t in plan.tabs],
@@ -196,7 +207,7 @@ def tool_save(args: Dict) -> Dict:
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        ok = st.save_into_safari(to_save, cfg)
+        ok = st.save_into_safari(to_save, cfg, via_terminal=STATE.get("mode") == "terminal")
         closed = 0
         if ok and args.get("tabs_danach_schliessen"):
             keys = {st.normalize_url(t.url) for t in to_save}
@@ -211,8 +222,8 @@ def tool_save(args: Dict) -> Dict:
     if problems:
         out["probleme"] = problems
     if not ok:
-        out["hinweis"] = ("Lesezeichen konnten nicht geschrieben werden: Das Python-Programm "
-                          "der Erweiterung hat keinen Festplattenvollzugriff.")
+        out["hinweis"] = ("Lesezeichen konnten nicht geschrieben werden (Details im Protokoll). "
+                          "Meist fehlt Terminal der Festplattenvollzugriff.")
         out["zugriff"] = st.access_diagnosis()
     return out
 
@@ -324,7 +335,7 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
 
 5. Bestätige zum Schluss kurz, was passiert ist (geschlossen, gespeichert pro Ordner).
 
-Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Falls `lesezeichen_zugriff` false ist: Rufe `safari_zugriff_pruefen` mit `einstellungen_oeffnen: true` auf und erkläre mir Schritt für Schritt, wie ich **Python.app** (Pfad aus `python_programm`) unter Festplattenvollzugriff hinzufüge. Die Freigabe nur für „Claude“ reicht nicht, weil die Erweiterung als eigenes Python-Programm läuft. Danach muss ich Claude mit ⌘Q beenden und neu öffnen. Wenn ich „weiter“ schreibe, prüfe den Zugriff erneut, bevor du weitermachst."""
+Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Zugriff: Hat die Erweiterung selbst keinen Festplattenvollzugriff, liest und schreibt sie die Lesezeichen über ein kurz geöffnetes Terminal-Fenster (`zugriff_ueber`: Terminal). Sag mir dann kurz, dass ich das Fenster schließen kann. Ist `lesezeichen_zugriff` trotzdem false, erkläre mir genau den `hinweis` (meist: Festplattenvollzugriff für **Terminal** einschalten) und rufe danach auf mein „weiter“ hin `safari_tabs_ueberblick` erneut auf."""
 
 PROMPTS = {
     "tabs-aufraeumen": {

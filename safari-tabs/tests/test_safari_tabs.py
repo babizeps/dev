@@ -1,4 +1,5 @@
 import json
+import os
 import plistlib
 import sys
 import tempfile
@@ -179,6 +180,77 @@ class CloudTabsTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             st.read_cloud_tabs(Path(self.dir.name) / "nope.db")
 
+
+class TerminalBridgeTest(unittest.TestCase):
+    """Umweg über Terminal: 'open -a Terminal x.command' wird hier nachgestellt."""
+
+    def setUp(self):
+        from make_sample_plist import sample
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.saved = (st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.CLOUD_TABS_DBS, st.subprocess.run)
+        st.BRIDGE_DIR = base / "bridge"
+        st.BOOKMARKS_PLIST = base / "Safari" / "Bookmarks.plist"
+        st.BOOKMARKS_PLIST.parent.mkdir()
+        st.BOOKMARKS_PLIST.write_bytes(plistlib.dumps(sample(), fmt=plistlib.FMT_BINARY))
+        st.CLOUD_TABS_DBS = [base / "Safari" / "CloudTabs.db"]
+        from make_sample_cloudtabs import make
+        make(str(st.CLOUD_TABS_DBS[0]))
+        self.opened = []
+
+        def fake_run(cmd, *a, **k):
+            if cmd[:3] == ["open", "-a", "Terminal"]:
+                self.opened.append(cmd[3])
+                text = Path(cmd[3]).read_text(encoding="utf-8")
+                op = text.split("--bridge-op ")[1].split()[0]
+                token = text.split("--bridge-token ")[1].split()[0]
+                st.bridge_main(op, token)          # „Terminal“ führt das Skript aus
+                return None
+            return self.saved[3](cmd, *a, **k)
+        st.subprocess.run = fake_run
+
+    def tearDown(self):
+        st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.CLOUD_TABS_DBS, st.subprocess.run = self.saved
+        self.tmp.cleanup()
+
+    def test_copy_then_apply(self):
+        root = None
+        res = st.run_via_terminal("copy")
+        self.assertTrue(res["cloud"])
+        root = st.load_bookmarks(st.BRIDGE_DIR / "Bookmarks.plist")
+        self.assertTrue(st.collect_folders(root))
+        cloud = st.BRIDGE_DIR / "cloud" / "CloudTabs.db"
+        tabs, _ = st.read_cloud_tabs(cloud)
+        self.assertEqual(len(tabs), 5)
+        st.cleanup_bridge_copies()
+        self.assertFalse((st.BRIDGE_DIR / "Bookmarks.plist").exists())
+        self.assertFalse(cloud.exists())
+
+        t = st.Tab(0, 0, "Lasagne", "https://www.chefkoch.de/rezepte/1/lasagne.html")
+        st.set_new_target(t, "Kochen")
+        res = st.run_via_terminal("apply", {"tabs": [st._tab_to_dict(t)]})
+        self.assertEqual(res["result"], {"Kochen": 1})
+        new = plistlib.loads(st.BOOKMARKS_PLIST.read_bytes())
+        kochen = next(c for c in new["Children"] if c.get("Title") == "Kochen")
+        self.assertEqual(len(kochen["Children"]), 1)
+        self.assertTrue(list(st.BOOKMARKS_PLIST.parent.glob("Bookmarks.plist.backup-*")))
+        # Skript ruft dieselbe Python-Datei auf, Austauschdateien sind aufgeräumt
+        self.assertIn(str(Path(st.__file__).resolve()), Path(self.opened[0]).read_text())
+        self.assertEqual(list(st.BRIDGE_DIR.glob("*.json")), [])
+
+    def test_terminal_without_access_reports_hint(self):
+        orig = st.shutil.copy2
+
+        def denied(*a, **k):
+            raise PermissionError(1, "Operation not permitted")
+        st.shutil.copy2 = denied
+        try:
+            with self.assertRaises(st.BridgeError) as cm:
+                st.run_via_terminal("copy")
+            self.assertIn("Festplattenvollzugriff", str(cm.exception))
+            self.assertIn("Terminal", str(cm.exception))
+        finally:
+            st.shutil.copy2 = orig
 
 if __name__ == "__main__":
     unittest.main()

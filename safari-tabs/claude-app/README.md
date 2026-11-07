@@ -25,12 +25,8 @@ Die iPhone-Tabs sind so aktuell wie die letzte iCloud-Synchronisierung (kurz Saf
 2. Doppelklick auf die Datei → die Claude-App öffnet sich → **Installieren**.
    (Alternativ: Claude → Einstellungen → Erweiterungen → Datei hineinziehen.)
 3. Zugriffsrechte für die App **Claude** (einmalig):
-   - **Festplattenvollzugriff für Python**: Nötig, damit die Erweiterung deine Lesezeichen-Ordner und iPhone-Tabs lesen kann.
-     ⚠️ Die Freigabe für „Claude“ allein reicht **nicht**: Die Erweiterung läuft als eigenes Python-Programm, und macOS prüft dieses Programm.
-     Am einfachsten schreibst du in Claude „Prüf den Zugriff“. Claude öffnet dann die Einstellung und zeigt dir Python.app im Finder. Von Hand:
-     Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff → **+** → ⌘⇧G → Pfad einfügen, meist
-     `/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app`
-     → Öffnen → Schalter an → Claude mit **⌘Q** beenden und neu öffnen.
+   - **Festplattenvollzugriff für Terminal**: Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff → **Terminal** einschalten (falls nicht in der Liste: **+** → Programme → Dienstprogramme → Terminal).
+     Warum Terminal? Die Erweiterung bekommt in der Claude-App oft keinen Festplattenvollzugriff, selbst wenn „Claude“ freigegeben ist. Sie lässt die Lesezeichen deshalb über ein kurz geöffnetes Terminal-Fenster lesen und eintragen. Das Fenster kannst du danach schließen. Hat die Erweiterung selbst Zugriff, wird Terminal nicht gebraucht.
    - **Safari steuern**: Beim ersten Benutzen fragt macOS „Claude möchte Safari steuern“ → **OK**.
      (Falls verpasst: Datenschutz & Sicherheit → Automation → Claude → Safari.)
 
@@ -57,6 +53,12 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json` eintragen (
   }
 }
 ```
+
+## Probleme?
+
+- **„Terminal hat keinen Festplattenvollzugriff“**: Schalter für Terminal einschalten, Terminal mit ⌘Q beenden, in Claude „weiter“ schreiben.
+- **„Prüf den Zugriff“** in Claude zeigt, was die Erweiterung lesen darf und von welchem Programm sie gestartet wurde.
+- Austauschdateien liegen kurz in `~/.safari-tabs/` und werden danach wieder gelöscht.
 
 ## Für Entwickler
 
