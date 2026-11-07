@@ -21,6 +21,8 @@ Nur Python-Standardbibliothek – läuft mit dem `python3`, das macOS mitbringt.
 | Fehlerseiten | „404 Not Found“, „Safari kann die Seite nicht öffnen“ |
 | Schon gespeichert | URL liegt schon in deinen Lesezeichen (das Tool zeigt, in welchem Ordner) |
 
+**iPhone/iPad:** Ist Safari in iCloud eingeschaltet, werden die Tabs deiner anderen Geräte automatisch mit analysiert und einsortiert (die Lesezeichen erscheinen über iCloud überall). Schließen lassen sie sich nicht automatisch – dafür gibt das Tool eine Checkliste aus.
+
 Web-Apps wie Gmail, Kalender, WhatsApp Web, Spotify und `localhost` bleiben offen und werden nicht gespeichert.
 
 ## Wie der passende Ordner gefunden wird
@@ -83,6 +85,7 @@ Zum Eintragen beendet das Tool Safari kurz (sonst würde Safari die Änderung ü
 | `--config regeln.json` | eigene Regeln (siehe unten) |
 | `--dump-config` | Standardregeln anzeigen |
 | `--json` | Analyse als JSON ausgeben |
+| `--nur-mac` | Tabs von iPhone/iPad (iCloud) nicht einbeziehen |
 
 **Sicherung zurückspielen:** Safari beenden, dann `cp ~/Library/Safari/Bookmarks.plist.backup-DATUM ~/Library/Safari/Bookmarks.plist`.
 

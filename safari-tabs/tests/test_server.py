@@ -37,7 +37,14 @@ class FakeSafari:
     def read(self):
         return [st.Tab(1, i + 1, t.title, t.url) for i, t in enumerate(self.tabs)]
 
+    def remote(self):
+        return [st.Tab(0, 0, "Atomic Habits | Goodreads",
+                       "https://www.goodreads.com/book/show/1", device="iPhone"),
+                st.Tab(0, 0, "pizza - Google Suche", "https://www.google.com/search?q=pizza",
+                       device="iPhone")]
+
     def close(self, tabs):
+        assert not any(t.remote for t in tabs), "iPhone-Tabs dürfen nicht an Safari gehen"
         urls = [t.url for t in tabs]
         before = len(self.tabs)
         for u in urls:
@@ -58,6 +65,10 @@ class ServerSessionTest(unittest.TestCase):
         self.fake = FakeSafari()
         self._orig = (st.read_safari_tabs, st.close_tabs, st.load_bookmarks, st.save_into_safari)
         st.read_safari_tabs = self.fake.read
+        self._orig_all = st.read_all_tabs
+        st.read_all_tabs = lambda include_cloud=True: (
+            self.fake.read() + (self.fake.remote() if include_cloud else []),
+            [{"geraet": "iPhone", "tabs": 2}] if include_cloud else [], None)
         st.close_tabs = self.fake.close
         st.load_bookmarks = lambda *a, **k: self.fake.root
         st.save_into_safari = self.fake.save
@@ -65,6 +76,7 @@ class ServerSessionTest(unittest.TestCase):
 
     def tearDown(self):
         st.read_safari_tabs, st.close_tabs, st.load_bookmarks, st.save_into_safari = self._orig
+        st.read_all_tabs = self._orig_all
 
     def rpc(self, lines):
         out = io.StringIO()
@@ -99,27 +111,34 @@ class ServerSessionTest(unittest.TestCase):
         self.assertIn("safari_tabs_ueberblick",
                       res[3]["result"]["messages"][0]["content"]["text"])
         ov = json.loads(res[4]["result"]["content"][0]["text"])
-        self.assertEqual(ov["zusammenfassung"]["schliessen"], 3)
+        self.assertEqual(ov["zusammenfassung"]["schliessen"], 4)
+        self.assertEqual(ov["zusammenfassung"]["mac_tabs"], 6)
+
+        self.assertEqual(ov["tabs"][6]["geraet"], "iPhone")
+        self.assertEqual(ov["tabs"][6]["ordner_vorschlag"], "Lesezeichenmenü/Book")
         by = {t["nr"]: t for t in ov["tabs"]}
         self.assertEqual(by[2]["ordner_vorschlag"], "Lesezeichenmenü/Video")
         self.assertEqual(by[4]["ordner_vorschlag"], "Lesezeichenmenü/AI-Chat")
         self.assertEqual(len(ov["ordner"]), 10)
 
         res = self.rpc([
-            self.call(6, "safari_tabs_schliessen", {"nummern": [1, 3, 5]}),
+            self.call(6, "safari_tabs_schliessen", {"nummern": [1, 3, 5, 8]}),
             self.call(7, "safari_lesezeichen_speichern", {"eintraege": [
                 {"nummer": 2, "ordner": "Video"},
                 {"nummer": 4, "ordner": "Lesezeichenmenü/AI-Chat"},
                 {"nummer": 6, "ordner": "Restaurants"},
+                {"nummer": 7, "ordner": "Book"},
             ]}),
         ])
         closed = json.loads(res[0]["result"]["content"][0]["text"])
         self.assertEqual(closed["geschlossen"], 3)
+        self.assertEqual([t["nr"] for t in closed["selbst_schliessen"]], [8])
         self.assertEqual(len(self.fake.tabs), 3)
         saved = json.loads(res[1]["result"]["content"][0]["text"])
         self.assertTrue(saved["ok"])
         self.assertEqual(self.fake.saved, {"Lesezeichenmenü/Video": 1,
-                                           "Lesezeichenmenü/AI-Chat": 1})
+                                           "Lesezeichenmenü/AI-Chat": 1,
+                                           "Lesezeichenmenü/Book": 1})
         self.assertIn("Restaurants", saved["probleme"][0])   # neuer Ordner nicht erlaubt
         self.assertIsNone(server.STATE["plan"])
 
@@ -137,9 +156,9 @@ class ServerSessionTest(unittest.TestCase):
         self.assertTrue(res[0]["result"]["isError"])
 
     def test_safari_error_is_reported(self):
-        def boom():
+        def boom(include_cloud=True):
             raise SystemExit("Kein Zugriff auf Safari. Terminal → Safari")
-        st.read_safari_tabs = boom
+        st.read_all_tabs = boom
         res = self.rpc([self.call(1, "safari_tabs_ueberblick")])
         self.assertTrue(res[0]["result"]["isError"])
         self.assertIn("Claude → Safari", res[0]["result"]["content"][0]["text"])

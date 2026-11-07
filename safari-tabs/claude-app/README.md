@@ -8,6 +8,17 @@ Damit kannst du in der normalen Claude-App einfach schreiben **„Räum meine Sa
 
 Ohne deine Bestätigung wird nichts geschlossen oder gespeichert.
 
+## iPhone & iPad
+
+Ist Safari auf deinen Geräten in iCloud eingeschaltet (iPhone: Einstellungen → [dein Name] → iCloud → Safari), liest Claude auf dem Mac auch die Tabs von iPhone und iPad mit:
+
+- Sie erscheinen im Überblick mit dem Gerätenamen; Tabs, die auch am Mac offen sind, werden als doppelt erkannt.
+- **Einsortieren** funktioniert genauso – über iCloud sind die Lesezeichen danach auch auf dem iPhone.
+- **Schließen** geht auf dem iPhone nicht automatisch (Apple erlaubt das nicht). Du bekommst eine Checkliste und schließt die Tabs am iPhone (Tab-Übersicht → nach links wischen) oder am Mac in der Tab-Übersicht unter dem Gerät.
+- Tipp: iPhone → Einstellungen → Apps → Safari → **Tabs schließen** → „Nach einer Woche“.
+
+Die iPhone-Tabs sind so aktuell wie die letzte iCloud-Synchronisierung (kurz Safari auf dem iPhone öffnen hilft).
+
 ## Installation
 
 1. Lade die Datei [`dist/safari-tabs.mcpb`](dist/safari-tabs.mcpb) herunter (auf GitHub: Datei öffnen → „Download raw file“).
@@ -49,3 +60,4 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json` eintragen (
 - `manifest.json` – Beschreibung der Erweiterung
 - `python3 build.py` – baut `dist/safari-tabs.mcpb` neu
 - Tests: `python3 -m unittest discover -s ../tests`
+- iPhone-Tabs kommen aus `~/Library/Containers/com.apple.Safari/Data/Library/Safari/CloudTabs.db` (nur lesend, über eine Kopie)

@@ -29,7 +29,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -39,9 +39,10 @@ STATE: Dict[str, Any] = {"plan": None, "folders": [], "cfg": None}
 # --------------------------------------------------------------------------
 # Werkzeuge
 # --------------------------------------------------------------------------
-def tool_overview(_: Dict) -> Dict:
+def tool_overview(args: Dict) -> Dict:
     cfg = st.load_config(None)
-    tabs = st.read_safari_tabs()
+    tabs, devices, cloud_note = st.read_all_tabs(
+        include_cloud=args.get("andere_geraete", True) is not False)
     root = st.load_bookmarks(quiet=True)
     folders = st.collect_folders(root) if root else []
     plan = st.analyze(tabs, cfg, st.bookmark_index(root, cfg["tracking_params"]))
@@ -56,7 +57,7 @@ def tool_overview(_: Dict) -> Dict:
             hosts[h] = hosts.get(h, 0) + 1
 
     def tab_info(t: st.Tab) -> Dict:
-        d = {"nr": t.num, "titel": t.title, "url": t.url,
+        d = {"nr": t.num, "geraet": t.device or "Mac", "titel": t.title, "url": t.url,
              "empfehlung": st.ACTION_LABEL[t.action]}
         if t.reason:
             d["grund"] = t.reason
@@ -69,10 +70,13 @@ def tool_overview(_: Dict) -> Dict:
                 d["ordner_grund"] = t.target_why
         return d
 
+    local, remote = st.split_local_remote(tabs)
     return {
         "zusammenfassung": {
             "tabs": len(tabs),
-            "fenster": len({t.window for t in tabs}),
+            "mac_tabs": len(local),
+            "mac_fenster": len({t.window for t in local}),
+            "andere_geraete": devices,
             "verschiedene_seiten": len(hosts),
             "haeufigste_seiten": sorted(hosts.items(), key=lambda x: -x[1])[:8],
             "schliessen": len(plan.by_action(st.CLOSE)),
@@ -80,6 +84,7 @@ def tool_overview(_: Dict) -> Dict:
             "offen_lassen": len(plan.by_action(st.KEEP)),
         },
         "lesezeichen_zugriff": bool(root),
+        "icloud_tabs_hinweis": cloud_note,
         "hinweis": None if root else (
             "Kein Zugriff auf die Safari-Lesezeichen. Bitte in Systemeinstellungen → "
             "Datenschutz & Sicherheit → Festplattenvollzugriff die App „Claude“ "
@@ -100,7 +105,8 @@ def tool_close(args: Dict) -> Dict:
     nums = {int(n) for n in args.get("nummern", [])}
     by_num = {t.num: t for t in plan.tabs}
     unknown = sorted(n for n in nums if n not in by_num)
-    tabs = [by_num[n] for n in sorted(nums) if n in by_num]
+    chosen = [by_num[n] for n in sorted(nums) if n in by_num]
+    tabs, remote = st.split_local_remote(chosen)
     res = st.close_tabs(tabs) if tabs else {"closed": 0, "skipped": 0}
     for t in tabs:
         t.action, t.reason = st.CLOSE, "geschlossen"
@@ -111,6 +117,13 @@ def tool_close(args: Dict) -> Dict:
     if res["skipped"]:
         out["uebersprungen"] = res["skipped"]
         out["hinweis"] = "Einige Tabs hatten sich inzwischen verändert und wurden nicht geschlossen."
+    if remote:
+        out["selbst_schliessen"] = [
+            {"nr": t.num, "geraet": t.device, "titel": t.title, "url": t.url} for t in remote]
+        out["hinweis_andere_geraete"] = (
+            "Tabs auf iPhone/iPad können nicht automatisch geschlossen werden. Gib dem Nutzer "
+            "eine Checkliste pro Gerät. Schließen: am iPhone in der Tab-Übersicht nach links "
+            "wischen, oder am Mac in der Tab-Übersicht unter dem Gerät auf das x klicken.")
     if unknown:
         out["unbekannte_nummern"] = unknown
     return out
@@ -125,7 +138,7 @@ def _refresh_positions(plan: st.Plan) -> None:
     for c in current:
         pool.setdefault(c.url, []).append(c)
     for t in plan.tabs:
-        if t.reason == "geschlossen":
+        if t.reason == "geschlossen" or t.remote:
             continue
         lst = pool.get(t.url)
         if lst:
@@ -205,17 +218,23 @@ TOOLS = {
     "safari_tabs_ueberblick": {
         "fn": tool_overview,
         "description": (
-            "Liest alle offenen Safari-Tabs und die Lesezeichen-Ordner des Nutzers. "
+            "Liest alle offenen Safari-Tabs des Macs und – über iCloud – von iPhone/iPad "
+            "sowie die Lesezeichen-Ordner des Nutzers. Jeder Tab hat ein Feld 'geraet'. "
             "Liefert für jeden Tab eine Nummer, eine Empfehlung (schließen / Lesezeichen / "
             "behalten) mit Grund, die erkannte Inhaltsart und einen passenden vorhandenen "
             "Ordner. Ändert nichts."),
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {"type": "object", "properties": {
+            "andere_geraete": {"type": "boolean",
+                               "description": "Tabs von iPhone/iPad (über iCloud) einbeziehen "
+                                              "(Standard: true)"}}},
         "annotations": {"title": "Safari-Tabs: Überblick", "readOnlyHint": True},
     },
     "safari_tabs_schliessen": {
         "fn": tool_close,
         "description": (
             "Schließt die angegebenen Safari-Tabs (Nummern aus safari_tabs_ueberblick). "
+            "Mac-Tabs werden direkt geschlossen; Tabs von iPhone/iPad kommen als Liste "
+            "'selbst_schliessen' zurück, die der Nutzer selbst schließen muss. "
             "Nur aufrufen, nachdem der Nutzer die Liste ausdrücklich bestätigt hat."),
         "inputSchema": {
             "type": "object",
@@ -228,7 +247,8 @@ TOOLS = {
     "safari_lesezeichen_speichern": {
         "fn": tool_save,
         "description": (
-            "Trägt Tabs als Lesezeichen in die angegebenen Ordner ein (Pfad oder Name aus "
+            "Trägt Tabs (auch von iPhone/iPad) als Lesezeichen in die angegebenen Ordner ein; "
+            "über iCloud erscheinen sie auf allen Geräten (Pfad oder Name aus "
             "der Ordnerliste von safari_tabs_ueberblick). Safari wird dafür kurz beendet und "
             "wieder geöffnet; vorher wird eine Sicherung der Lesezeichen angelegt; vorhandene "
             "Lesezeichen werden nicht doppelt eingetragen. Nur nach ausdrücklicher "
@@ -266,14 +286,14 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
 
 1. Rufe `safari_tabs_ueberblick` auf.
 
-2. **Überblick:** Fasse kurz zusammen (Anzahl Tabs und Fenster, häufigste Seiten, wie viel überflüssig ist).
+2. **Überblick:** Fasse kurz zusammen: Tabs pro Gerät (Mac, iPhone, iPad …), häufigste Seiten, wie viel überflüssig ist. Falls `icloud_tabs_hinweis` gesetzt ist, erkläre kurz, warum iPhone-Tabs fehlen.
 
-3. **Empfehlung – schließen:** Zeige eine Tabelle mit Nr., Titel (kurz) und Grund für alle Tabs, die geschlossen werden sollten. Prüfe die Empfehlungen des Tools mit deinem eigenen Urteil: Ergänze offensichtlich erledigte Tabs (z. B. Bestell-/Versandbestätigungen, Paketverfolgung, Download-Seiten, einmalige Formulare) und nimm Tabs heraus, die eindeutig wichtig sind. Markiere deine eigenen Änderungen mit „(Claude)“.
+3. **Empfehlung – schließen:** Zeige eine Tabelle mit Nr., Gerät, Titel (kurz) und Grund für alle Tabs, die geschlossen werden sollten. Prüfe die Empfehlungen des Tools mit deinem eigenen Urteil: Ergänze offensichtlich erledigte Tabs (z. B. Bestell-/Versandbestätigungen, Paketverfolgung, Download-Seiten, einmalige Formulare) und nimm Tabs heraus, die eindeutig wichtig sind. Markiere deine eigenen Änderungen mit „(Claude)“.
    Frage mich dann, ob diese Tabs geschlossen werden sollen. Ich kann Nummern hinzufügen oder herausnehmen.
-   Erst nach meinem OK: `safari_tabs_schliessen`.
+   Erst nach meinem OK: `safari_tabs_schliessen`. Mac-Tabs werden dabei automatisch geschlossen. Für Tabs auf iPhone/iPad gib mir danach eine kurze Checkliste pro Gerät (die muss ich selbst schließen) – erwähne auch die Einstellung „Tabs automatisch schließen“ am iPhone (Einstellungen → Apps → Safari → Tabs schließen).
 
 4. **Einsortieren:** Zeige eine Tabelle mit Nr., Titel und Ziel-Ordner für die übrigen Tabs, die gespeichert werden sollen, gruppiert nach Ordner. Verwende meine vorhandenen Ordner aus der Ordnerliste. Für Tabs mit Vorschlag „Unsortiert (neu)“ oder unpassendem Vorschlag wähle selbst den passendsten vorhandenen Ordner anhand von Titel und URL. Schlage einen neuen Ordner nur vor, wenn wirklich nichts passt, und kennzeichne ihn als neu. Web-Apps mit Empfehlung „behalten“ bleiben offen.
-   Frage mich, ob ich so speichern soll und ob die gespeicherten Tabs danach geschlossen werden sollen. Hinweis: Safari wird dafür kurz beendet und wieder geöffnet.
+   Frage mich, ob ich so speichern soll und ob die gespeicherten Tabs danach geschlossen werden sollen. Hinweis: Safari wird dafür kurz beendet und wieder geöffnet. Über iCloud erscheinen die Lesezeichen auch auf iPhone/iPad. „Danach schließen“ wirkt nur auf Mac-Tabs.
    Erst nach meinem OK: `safari_lesezeichen_speichern` (neue Ordner nur mit `neue_ordner_erlaubt: true`, wenn ich zugestimmt habe).
 
 5. Bestätige zum Schluss kurz, was passiert ist (geschlossen, gespeichert pro Ordner).

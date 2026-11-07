@@ -21,6 +21,8 @@ import os
 import plistlib
 import re
 import shutil
+import sqlite3
+import tempfile
 import subprocess
 import sys
 import time
@@ -31,6 +33,12 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 BOOKMARKS_PLIST = Path.home() / "Library" / "Safari" / "Bookmarks.plist"
+# iCloud-Tabs anderer Geräte (iPhone, iPad, andere Macs), von Safari synchronisiert
+CLOUD_TABS_DBS = [
+    Path.home() / "Library" / "Containers" / "com.apple.Safari" / "Data" / "Library"
+    / "Safari" / "CloudTabs.db",
+    Path.home() / "Library" / "Safari" / "CloudTabs.db",
+]
 
 CLOSE = "close"
 BOOKMARK = "bookmark"
@@ -337,6 +345,11 @@ class Tab:
     target_path: str = ""    # Anzeige, z. B. "Favoriten/Dev"
     target_new: bool = False  # Ordner existiert noch nicht
     target_why: str = ""
+    device: str = ""         # leer = dieser Mac, sonst z. B. "iPhone von Jürgen"
+
+    @property
+    def remote(self) -> bool:
+        return bool(self.device)
 
     @property
     def host(self) -> str:
@@ -521,7 +534,12 @@ def analyze(tabs: List[Tab], cfg: Dict,
         if is_empty(tab):
             decide(CLOSE, "leerer Tab / Startseite")
         elif key in seen:
-            decide(CLOSE, f"Duplikat von #{seen[key].num}")
+            other = seen[key]
+            if other.device != tab.device:
+                decide(CLOSE, f"auch {'auf ' + other.device if other.device else 'am Mac'} "
+                              f"offen (#{other.num})")
+            else:
+                decide(CLOSE, f"Duplikat von #{other.num}")
         elif any(p.search(tab.url) for p in force_close):
             decide(CLOSE, "eigene Regel (close_patterns)")
         elif any(p.search(tab.url) for p in force_bm):
@@ -651,6 +669,107 @@ def close_tabs(tabs: List[Tab]) -> Dict:
     if not items:
         return {"closed": 0, "skipped": 0}
     return json.loads(osascript(JXA_CLOSE, json.dumps(items)))
+
+
+def local_computer_name() -> str:
+    try:
+        out = subprocess.run(["scutil", "--get", "ComputerName"],
+                             capture_output=True, text=True, timeout=5)
+        return out.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _cf_time(value) -> Optional[_dt.datetime]:
+    """Apple-Zeitstempel (Sekunden seit 2001) → datetime, falls plausibel."""
+    try:
+        ts = float(value) + 978307200
+        d = _dt.datetime.fromtimestamp(ts)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+    return d if 2015 <= d.year <= _dt.date.today().year + 1 else None
+
+
+def read_cloud_tabs(db_path: Optional[Path] = None,
+                    exclude_devices: Iterable[str] = ()) -> Tuple[List[Tab], List[Dict]]:
+    """Liest die per iCloud synchronisierten Tabs anderer Geräte.
+
+    Gibt (Tabs, Geräteliste) zurück. Die Datenbank wird in einen temporären
+    Ordner kopiert, damit Safari nicht gestört wird. Fehlt die Datei oder der
+    Zugriff, wird PermissionError/FileNotFoundError ausgelöst.
+    """
+    candidates = [db_path] if db_path else CLOUD_TABS_DBS
+    src = next((p for p in candidates if p and p.exists()), None)
+    if src is None:
+        raise FileNotFoundError("CloudTabs.db nicht gefunden – ist Safari in den "
+                                "iCloud-Einstellungen eingeschaltet?")
+    exclude = {e.strip().lower() for e in exclude_devices if e}
+    with tempfile.TemporaryDirectory() as tmp:
+        for suffix in ("", "-wal", "-shm"):
+            f = Path(str(src) + suffix)
+            if f.exists():
+                shutil.copy2(f, Path(tmp) / (src.name + suffix))  # PermissionError ohne FDA
+        con = sqlite3.connect(str(Path(tmp) / src.name))
+        try:
+            con.row_factory = sqlite3.Row
+            tables = {r[0] for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            if "cloud_tabs" not in tables:
+                raise FileNotFoundError("Unbekanntes Format von CloudTabs.db")
+
+            def cols(table: str) -> set:
+                return {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+
+            devices: Dict[str, Dict] = {}
+            if "cloud_tab_devices" in tables:
+                dc = cols("cloud_tab_devices")
+                sel = ["device_uuid", "device_name"] + \
+                      (["last_modified"] if "last_modified" in dc else [])
+                for r in con.execute(f"SELECT {', '.join(sel)} FROM cloud_tab_devices"):
+                    last = _cf_time(r["last_modified"]) if "last_modified" in sel else None
+                    devices[r["device_uuid"]] = {
+                        "name": r["device_name"] or "Anderes Gerät",
+                        "zuletzt": last.strftime("%d.%m.%Y %H:%M") if last else None,
+                        "tabs": 0,
+                    }
+            tc = cols("cloud_tabs")
+            order = " ORDER BY device_uuid, position" if "position" in tc else ""
+            sel = ["device_uuid", "title", "url"] + (["is_pinned"] if "is_pinned" in tc else [])
+            tabs: List[Tab] = []
+            for r in con.execute(f"SELECT {', '.join(sel)} FROM cloud_tabs{order}"):
+                dev = devices.setdefault(r["device_uuid"], {
+                    "name": "Anderes Gerät", "zuletzt": None, "tabs": 0})
+                if dev["name"].strip().lower() in exclude:
+                    continue
+                dev["tabs"] += 1
+                tabs.append(Tab(window=0, index=0, title=r["title"] or "",
+                                url=r["url"] or "", device=dev["name"]))
+        finally:
+            con.close()
+    dev_list = [{"geraet": d["name"], "tabs": d["tabs"], "zuletzt_synchronisiert": d["zuletzt"]}
+                for d in devices.values()
+                if d["name"].strip().lower() not in exclude and d["tabs"]]
+    return tabs, dev_list
+
+
+def read_all_tabs(include_cloud: bool = True) -> Tuple[List[Tab], List[Dict], Optional[str]]:
+    """Mac-Tabs + (optional) iCloud-Tabs. Gibt (Tabs, Geräte, Hinweis) zurück."""
+    tabs = read_safari_tabs()
+    if not include_cloud:
+        return tabs, [], None
+    try:
+        remote, devices = read_cloud_tabs(exclude_devices=[local_computer_name()])
+    except PermissionError:
+        return tabs, [], ("iPhone-/iPad-Tabs nicht lesbar: Festplattenvollzugriff fehlt "
+                          "(Systemeinstellungen → Datenschutz & Sicherheit → "
+                          "Festplattenvollzugriff).")
+    except (FileNotFoundError, sqlite3.Error) as e:
+        return tabs, [], f"iPhone-/iPad-Tabs nicht verfügbar: {e}"
+    return tabs + remote, devices, None
+
+
+def split_local_remote(tabs: List[Tab]) -> Tuple[List[Tab], List[Tab]]:
+    return [t for t in tabs if not t.remote], [t for t in tabs if t.remote]
 
 
 # --------------------------------------------------------------------------
@@ -973,7 +1092,8 @@ def _tw() -> int:
 
 def _row(t: Tab, info: str) -> str:
     tw = _tw()
-    return (f"  {t.num:>3}  {_short(t.title or t.url, tw):<{tw}}  "
+    title = (f"[{t.device}] " if t.device else "") + (t.title or t.url)
+    return (f"  {t.num:>3}  {_short(title, tw):<{tw}}  "
             f"{_short(_bare_host(t.host), 22):<22}  {info}")
 
 
@@ -983,21 +1103,27 @@ def header(text: str) -> None:
 
 def print_overview(plan: Plan, have_folders: bool) -> None:
     tabs = plan.tabs
-    windows = len({t.window for t in tabs})
+    local, remote = split_local_remote(tabs)
+    windows = len({t.window for t in local})
     hosts: Dict[str, int] = {}
     for t in tabs:
         if t.host:
             h = _bare_host(t.host)
             hosts[h] = hosts.get(h, 0) + 1
     header("Überblick")
-    print(f"  {len(tabs)} Tabs in {windows} Fenster{'n' if windows != 1 else ''} · "
-          f"{len(hosts)} verschiedene Seiten")
+    print(f"  {len(tabs)} Tabs · {len(hosts)} verschiedene Seiten")
+    print(f"  Mac: {len(local)} Tabs in {windows} Fenster{'n' if windows != 1 else ''}")
+    per_dev: Dict[str, int] = {}
+    for t in remote:
+        per_dev[t.device] = per_dev.get(t.device, 0) + 1
+    for d, n in per_dev.items():
+        print(f"  {d}: {n} Tab{'s' if n != 1 else ''} (über iCloud)")
     top = sorted(hosts.items(), key=lambda x: -x[1])[:6]
     if top:
         print("  Am häufigsten: " + ", ".join(f"{h} ({n})" for h, n in top))
     reasons: Dict[str, int] = {}
     for t in plan.by_action(CLOSE):
-        r = re.sub(r" (von #\d+|in .+)$", "", t.reason)
+        r = re.sub(r" (von #\d+|in .+|\(#\d+\))$", "", t.reason)
         reasons[r] = reasons.get(r, 0) + 1
     if reasons:
         print("  Überflüssig: " + ", ".join(f"{n}× {r}" for r, n in
@@ -1020,6 +1146,19 @@ def print_close_list(plan: Plan) -> None:
         print("  – nichts –")
     for t in items:
         print(_row(t, t.reason))
+
+
+def print_remote_close_hint(tabs: List[Tab]) -> None:
+    """iPhone-/iPad-Tabs lassen sich nicht automatisch schließen → Checkliste."""
+    by_dev: Dict[str, List[Tab]] = {}
+    for t in tabs:
+        by_dev.setdefault(t.device, []).append(t)
+    for dev, items in by_dev.items():
+        header(f"Bitte selbst schließen auf {dev} ({len(items)})")
+        print("  (Am iPhone: Tab-Übersicht → Tab nach links wischen. Oder am Mac in der "
+              "Tab-Übersicht unter dem Gerät.)")
+        for t in items:
+            print(f"  ☐ {_short(t.title or t.url, 60)}  –  {_bare_host(t.host)}")
 
 
 def print_bookmark_list(plan: Plan, have_folders: bool) -> None:
@@ -1099,8 +1238,10 @@ def _apply_action_tokens(ans: str, plan: Plan, cfg: Dict,
 def step_close(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[bool]:
     """True = schließen, False = überspringen, None = abbrechen"""
     while True:
-        n = len(plan.by_action(CLOSE))
-        print(f"\nSchritt 1/2 · {n} empfohlene Tabs schließen?")
+        loc, rem = split_local_remote(plan.by_action(CLOSE))
+        extra = (f" (+ {len(rem)} auf anderen Geräten – dafür bekommst du eine Liste)"
+                 if rem else "")
+        print(f"\nSchritt 1/2 · {len(loc)} empfohlene Tabs auf dem Mac schließen?{extra}")
         print("  Enter/j = ja · n = nicht schließen, weiter · q = abbrechen\n"
               "  ändern: '12b' Tab 12 behalten, '5l' als Lesezeichen, '7s' schließen, "
               "'3-6b' Bereich")
@@ -1262,6 +1403,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="Tabs aus JSON-Datei statt aus Safari lesen (Test)")
     ap.add_argument("--json", action="store_true",
                     help="Analyse als JSON ausgeben und beenden")
+    ap.add_argument("--nur-mac", action="store_true",
+                    help="Tabs von iPhone/iPad (iCloud) nicht einbeziehen")
+    ap.add_argument("--cloud-db", metavar="DB",
+                    help="andere CloudTabs.db verwenden (Test)")
     args = ap.parse_args(argv)
 
     if args.dump_config:
@@ -1278,8 +1423,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         tabs = [Tab(window=d.get("window", 1), index=d.get("index", i + 1),
                     title=d.get("title", ""), url=d.get("url", ""))
                 for i, d in enumerate(data)]
+        if args.cloud_db:
+            remote, _ = read_cloud_tabs(Path(args.cloud_db))
+            tabs += remote
     else:
-        tabs = read_safari_tabs()
+        tabs, _, note = read_all_tabs(include_cloud=not args.nur_mac)
+        if note:
+            print(f"ℹ️  {note}", file=sys.stderr)
     if not tabs:
         print("Keine Tabs gefunden.")
         return 0
@@ -1308,7 +1458,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Abgebrochen – nichts geändert.")
         return 1
     if do_close:
-        to_close = plan.by_action(CLOSE)
+        to_close, remote_close = split_local_remote(plan.by_action(CLOSE))
+        if remote_close:
+            print_remote_close_hint(remote_close)
         if offline:
             print(f"(Test) würde {len(to_close)} Tabs schließen.")
         elif to_close:

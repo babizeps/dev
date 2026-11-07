@@ -146,5 +146,39 @@ class ContentTypeFoldersTest(unittest.TestCase):
             self.assertEqual(tab.target_path, "Lesezeichenmenü/" + want, tab.title)
 
 
+class CloudTabsTest(unittest.TestCase):
+    def setUp(self):
+        from make_sample_cloudtabs import make
+        self.dir = tempfile.TemporaryDirectory()
+        self.db = Path(self.dir.name) / "CloudTabs.db"
+        make(str(self.db))
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_read_and_exclude_this_mac(self):
+        tabs, devices = st.read_cloud_tabs(self.db, exclude_devices=["MacBook Air"])
+        self.assertEqual([t.title for t in tabs][:2], ["ChatGPT", "Atomic Habits | Goodreads"])
+        self.assertEqual(len(tabs), 4)
+        self.assertTrue(all(t.device == "iPhone von Jürgen" and t.remote for t in tabs))
+        self.assertEqual(devices[0]["geraet"], "iPhone von Jürgen")
+        self.assertEqual(devices[0]["tabs"], 4)
+        self.assertTrue(devices[0]["zuletzt_synchronisiert"])
+
+    def test_mixed_with_mac_tabs(self):
+        remote, _ = st.read_cloud_tabs(self.db, exclude_devices=["MacBook Air"])
+        mac = [st.Tab(1, 1, "Lofi beats - YouTube", "https://www.youtube.com/watch?v=abc")]
+        cfg = st.load_config(None)
+        plan = st.analyze(mac + remote, cfg, {})
+        by = {t.title: t for t in plan.tabs[1:]}
+        self.assertEqual(by["Lofi beats - YouTube"].reason, "auch am Mac offen (#1)")
+        self.assertEqual(by["pizza in der nähe - Google Suche"].action, st.CLOSE)
+        self.assertEqual(by["ChatGPT"].action, st.BOOKMARK)
+
+    def test_missing_db(self):
+        with self.assertRaises(FileNotFoundError):
+            st.read_cloud_tabs(Path(self.dir.name) / "nope.db")
+
+
 if __name__ == "__main__":
     unittest.main()
