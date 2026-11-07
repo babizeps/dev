@@ -106,7 +106,7 @@ class ServerSessionTest(unittest.TestCase):
         ])
         self.assertEqual([r["id"] for r in res], [1, 2, 3, 4, 5])
         self.assertEqual(res[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(res[1]["result"]["tools"]), 3)
+        self.assertEqual(len(res[1]["result"]["tools"]), 4)
         self.assertEqual(res[2]["result"]["prompts"][0]["name"], "tabs-aufraeumen")
         self.assertIn("safari_tabs_ueberblick",
                       res[3]["result"]["messages"][0]["content"]["text"])
@@ -162,6 +162,23 @@ class ServerSessionTest(unittest.TestCase):
         res = self.rpc([self.call(1, "safari_tabs_ueberblick")])
         self.assertTrue(res[0]["result"]["isError"])
         self.assertIn("Claude → Safari", res[0]["result"]["content"][0]["text"])
+
+    def test_no_bookmark_access_gives_diagnosis(self):
+        st.load_bookmarks = lambda *a, **k: None
+        res = self.rpc([self.call(1, "safari_tabs_ueberblick"),
+                        self.call(2, "safari_zugriff_pruefen")])
+        ov = json.loads(res[0]["result"]["content"][0]["text"])
+        self.assertFalse(ov["lesezeichen_zugriff"])
+        self.assertIn("safari_zugriff_pruefen", ov["hinweis"])
+        self.assertTrue(ov["zugriff"]["python_programm"])
+        diag = json.loads(res[1]["result"]["content"][0]["text"])
+        self.assertIn(diag["python_programm"], diag["anleitung"][1])
+        self.assertFalse(diag["alles_ok"])
+
+    def test_python_app_from_framework_path(self):
+        path = ("/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/"
+                "Versions/3.9/Resources/Python.app/Contents/MacOS/Python")
+        self.assertEqual(st._app_bundle(path), path.split("/Contents/")[0])
 
     def test_unknown_method(self):
         res = self.rpc([{"jsonrpc": "2.0", "id": 9, "method": "foo/bar"}])

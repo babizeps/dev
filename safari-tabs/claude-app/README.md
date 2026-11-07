@@ -25,8 +25,12 @@ Die iPhone-Tabs sind so aktuell wie die letzte iCloud-Synchronisierung (kurz Saf
 2. Doppelklick auf die Datei → die Claude-App öffnet sich → **Installieren**.
    (Alternativ: Claude → Einstellungen → Erweiterungen → Datei hineinziehen.)
 3. Zugriffsrechte für die App **Claude** (einmalig):
-   - **Festplattenvollzugriff**: Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff → **Claude** einschalten → Claude neu starten.
-     Nötig, damit Claude deine Lesezeichen-Ordner sehen und darin speichern kann.
+   - **Festplattenvollzugriff für Python**: Nötig, damit die Erweiterung deine Lesezeichen-Ordner und iPhone-Tabs lesen kann.
+     ⚠️ Die Freigabe für „Claude“ allein reicht **nicht**: Die Erweiterung läuft als eigenes Python-Programm, und macOS prüft dieses Programm.
+     Am einfachsten schreibst du in Claude „Prüf den Zugriff“. Claude öffnet dann die Einstellung und zeigt dir Python.app im Finder. Von Hand:
+     Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff → **+** → ⌘⇧G → Pfad einfügen, meist
+     `/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app`
+     → Öffnen → Schalter an → Claude mit **⌘Q** beenden und neu öffnen.
    - **Safari steuern**: Beim ersten Benutzen fragt macOS „Claude möchte Safari steuern“ → **OK**.
      (Falls verpasst: Datenschutz & Sicherheit → Automation → Claude → Safari.)
 

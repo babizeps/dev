@@ -965,9 +965,104 @@ def load_bookmarks(path: Path = BOOKMARKS_PLIST, quiet: bool = False) -> Optiona
             print("⚠️  Kein Zugriff auf deine Safari-Lesezeichen (Bookmarks.plist).\n"
                   "   Ohne Zugriff kann ich deine Ordner nicht sehen. Bitte erlauben:\n"
                   "   Systemeinstellungen → Datenschutz & Sicherheit → "
-                  "Festplattenvollzugriff → Terminal aktivieren, dann Terminal neu starten.\n",
+                  "Festplattenvollzugriff → Terminal aktivieren, dann Terminal neu starten.\n"
+                  "   Startest du das Tool aus einer anderen App, braucht stattdessen dieses\n"
+                  f"   Programm die Freigabe: {python_app_to_allow()}\n",
                   file=sys.stderr)
         return None
+
+
+# --------------------------------------------------------------------------
+# Zugriffsrechte prüfen (Festplattenvollzugriff)
+# --------------------------------------------------------------------------
+FDA_SETTINGS_URL = ("x-apple.systempreferences:com.apple.preference.security"
+                    "?Privacy_AllFiles")
+
+
+def _ps(pid: int) -> Tuple[int, str]:
+    """(Eltern-PID, Programmpfad) eines Prozesses."""
+    try:
+        out = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        ppid, comm = out.split(None, 1)
+        return int(ppid), comm.strip()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0, ""
+
+
+def _app_bundle(path: str) -> Optional[str]:
+    if ".app/" in path:
+        return path[: path.index(".app/") + 4]
+    return None
+
+
+def python_app_to_allow() -> str:
+    """Das Programm, das macOS beim Dateizugriff tatsächlich prüft.
+
+    Beim Python von Apple (Entwicklerwerkzeuge) und von python.org ist das
+    „Python.app“ im Framework – nicht /usr/bin/python3 und nicht die Claude-App.
+    """
+    _, own = _ps(os.getpid())
+    for cand in (own, os.path.realpath(sys.executable)):
+        b = _app_bundle(cand or "")
+        if b:
+            return b
+    fw = Path(sys.base_prefix) / "Resources" / "Python.app"
+    if fw.exists():
+        return str(fw)
+    return os.path.realpath(sys.executable)
+
+
+def _probe(path: Path) -> str:
+    try:
+        with open(path, "rb") as fh:
+            fh.read(16)
+        return "ok"
+    except FileNotFoundError:
+        return "nicht vorhanden"
+    except OSError as e:
+        if e.errno == 1:
+            return "gesperrt (macOS-Datenschutz, Festplattenvollzugriff fehlt)"
+        return f"gesperrt ({e.strerror})"
+
+
+def access_diagnosis() -> Dict:
+    chain = []
+    pid = os.getpid()
+    for _ in range(6):
+        ppid, comm = _ps(pid)
+        if not comm:
+            break
+        chain.append(comm)
+        if ppid <= 1:
+            break
+        pid = ppid
+    cloud = next((p for p in CLOUD_TABS_DBS if p.exists()), CLOUD_TABS_DBS[0])
+    app = python_app_to_allow()
+    return {
+        "lesezeichen": _probe(BOOKMARKS_PLIST),
+        "icloud_tabs": _probe(cloud),
+        "python_programm": app,
+        "python_version": sys.version.split()[0],
+        "gestartet_von": chain,
+        "anleitung": [
+            "Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff öffnen.",
+            "Unten auf „+“ klicken, dann ⌘⇧G drücken und diesen Pfad einfügen: " + app,
+            "„Öffnen“ klicken und den neuen Eintrag „Python“ einschalten.",
+            "Die Claude-App mit ⌘Q komplett beenden und neu öffnen.",
+        ],
+        "warum": ("Die Erweiterung läuft als eigenes Python-Programm. macOS prüft den "
+                  "Festplattenvollzugriff für dieses Programm, deshalb reicht die "
+                  "Freigabe für „Claude“ allein nicht."),
+    }
+
+
+def open_access_settings() -> None:
+    """Öffnet die Einstellung Festplattenvollzugriff und zeigt Python.app im Finder."""
+    subprocess.run(["open", FDA_SETTINGS_URL])
+    app = python_app_to_allow()
+    if app.endswith(".app"):
+        subprocess.run(["open", "-R", app])
 
 
 def _new_folder(title: str) -> Dict:

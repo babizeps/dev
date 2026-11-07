@@ -29,7 +29,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.1.0"
+SERVER_VERSION = "1.2.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -86,9 +86,11 @@ def tool_overview(args: Dict) -> Dict:
         "lesezeichen_zugriff": bool(root),
         "icloud_tabs_hinweis": cloud_note,
         "hinweis": None if root else (
-            "Kein Zugriff auf die Safari-Lesezeichen. Bitte in Systemeinstellungen → "
-            "Datenschutz & Sicherheit → Festplattenvollzugriff die App „Claude“ "
-            "aktivieren und Claude neu starten."),
+            "Kein Zugriff auf die Safari-Lesezeichen. Die Freigabe für die App „Claude“ "
+            "reicht nicht: Das Python-Programm der Erweiterung braucht selbst den "
+            "Festplattenvollzugriff. Rufe safari_zugriff_pruefen auf (mit "
+            "einstellungen_oeffnen=true) und führe den Nutzer durch die Anleitung."),
+        "zugriff": None if root else st.access_diagnosis(),
         "ordner": [{"nr": f.num, "pfad": f.path, "lesezeichen": f.leaves} for f in folders],
         "tabs": [tab_info(t) for t in plan.tabs],
     }
@@ -209,12 +211,36 @@ def tool_save(args: Dict) -> Dict:
     if problems:
         out["probleme"] = problems
     if not ok:
-        out["hinweis"] = ("Lesezeichen konnten nicht geschrieben werden. Meist fehlt der "
-                          "Festplattenvollzugriff für die App „Claude“.")
+        out["hinweis"] = ("Lesezeichen konnten nicht geschrieben werden: Das Python-Programm "
+                          "der Erweiterung hat keinen Festplattenvollzugriff.")
+        out["zugriff"] = st.access_diagnosis()
     return out
 
 
+def tool_access(args: Dict) -> Dict:
+    diag = st.access_diagnosis()
+    if args.get("einstellungen_oeffnen"):
+        st.open_access_settings()
+        diag["geoeffnet"] = ("Die Einstellung „Festplattenvollzugriff“ ist geöffnet und "
+                             "Python.app wird im Finder angezeigt – der Nutzer kann es "
+                             "auch einfach in die Liste ziehen.")
+    diag["alles_ok"] = diag["lesezeichen"] == "ok"
+    return diag
+
+
 TOOLS = {
+    "safari_zugriff_pruefen": {
+        "fn": tool_access,
+        "description": (
+            "Prüft, ob die Erweiterung auf Safari-Lesezeichen und iCloud-Tabs zugreifen darf, "
+            "und nennt genau das Programm, das unter Festplattenvollzugriff freigegeben werden "
+            "muss (Python.app, nicht nur Claude). Mit einstellungen_oeffnen=true werden die "
+            "Systemeinstellung und Python.app im Finder geöffnet."),
+        "inputSchema": {"type": "object", "properties": {
+            "einstellungen_oeffnen": {"type": "boolean",
+                                      "description": "Einstellungen + Finder öffnen"}}},
+        "annotations": {"title": "Zugriff prüfen", "readOnlyHint": True},
+    },
     "safari_tabs_ueberblick": {
         "fn": tool_overview,
         "description": (
@@ -298,7 +324,7 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
 
 5. Bestätige zum Schluss kurz, was passiert ist (geschlossen, gespeichert pro Ordner).
 
-Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Falls ein Werkzeug meldet, dass Zugriffsrechte fehlen, erkläre mir genau, wo ich sie einschalte."""
+Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Falls `lesezeichen_zugriff` false ist: Rufe `safari_zugriff_pruefen` mit `einstellungen_oeffnen: true` auf und erkläre mir Schritt für Schritt, wie ich **Python.app** (Pfad aus `python_programm`) unter Festplattenvollzugriff hinzufüge. Die Freigabe nur für „Claude“ reicht nicht, weil die Erweiterung als eigenes Python-Programm läuft. Danach muss ich Claude mit ⌘Q beenden und neu öffnen. Wenn ich „weiter“ schreibe, prüfe den Zugriff erneut, bevor du weitermachst."""
 
 PROMPTS = {
     "tabs-aufraeumen": {
