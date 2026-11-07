@@ -1,5 +1,7 @@
 # safari-tabs
 
+> **Lieber in der Claude-App?** Siehe [`claude-app/`](claude-app/README.md): Erweiterung installieren und einfach „Räum meine Safari-Tabs auf“ schreiben.
+
 Räumt deine Safari-Tabs in zwei Schritten auf:
 
 1. **Überblick & Empfehlung:** Du siehst alle offenen Tabs auf einen Blick: wie viele, welche Seiten am häufigsten, und welche Tabs du schließen kannst (mit Begründung).
