@@ -54,6 +54,17 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json` eintragen (
 }
 ```
 
+## Unterordner
+
+Landen viele Tabs im selben Ordner, kann Claude passende **Unterordner** vorschlagen, zum Beispiel:
+
+```
+Video  → Musik (5) · Programmieren (3) · Dokus (2)
+Article → KI (6) · Datenschutz (3)
+```
+
+Schreib „Mach passende Unterordner für meine Tabs“ oder nimm den Befehl **unterordner-erstellen**. Claude gruppiert die Tabs je Ordner nach gemeinsamen Websites und Stichwörtern, nutzt vorhandene Unterordner wieder und zeigt dir den Vorschlag als Baum. Namen änderst oder Gruppen verschiebst du einfach im Chat. Angelegt wird erst nach deinem OK. Die Unterordner entstehen **in deinen vorhandenen Ordnern**, nicht daneben. Mit „mach das rückgängig“ verschwinden die Lesezeichen und die neu angelegten Unterordner wieder.
+
 ## Fehler korrigieren
 
 Ist etwas im falschen Ordner gelandet, schreib z. B. „Die letzten Lesezeichen waren falsch, mach das rückgängig“ oder „Entferne ‚The AI Future Is for Everyone – WSJ‘ aus Article“ – oder nimm den Befehl **lesezeichen-korrigieren**. Claude kann jetzt:

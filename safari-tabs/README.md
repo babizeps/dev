@@ -66,6 +66,7 @@ q            abbrechen
 Enter / j    Lesezeichen wie vorgeschlagen eintragen
 o            nummerierte Liste deiner Ordner anzeigen
 4>12         Tab 4 in Ordner Nr. 12
+4>Video/Musik  Tab 4 in neuen Unterordner „Musik“ im vorhandenen Ordner „Video“
 4>Kochen     Tab 4 in Ordner „Kochen“ (Teilname reicht, sonst wird ein neuer Ordner angelegt)
 4x           Tab 4 nicht speichern
 q            abbrechen

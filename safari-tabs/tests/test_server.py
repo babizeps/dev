@@ -109,9 +109,9 @@ class ServerSessionTest(unittest.TestCase):
         ])
         self.assertEqual([r["id"] for r in res], [1, 2, 3, 4, 5])
         self.assertEqual(res[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(res[1]["result"]["tools"]), 8)
+        self.assertEqual(len(res[1]["result"]["tools"]), 9)
         self.assertEqual([p["name"] for p in res[2]["result"]["prompts"]],
-                         ["tabs-aufraeumen", "lesezeichen-korrigieren"])
+                         ["tabs-aufraeumen", "unterordner-erstellen", "lesezeichen-korrigieren"])
         self.assertIn("safari_tabs_ueberblick",
                       res[3]["result"]["messages"][0]["content"]["text"])
         ov = json.loads(res[4]["result"]["content"][0]["text"])
@@ -227,6 +227,48 @@ class ServerSessionTest(unittest.TestCase):
         finally:
             st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.apply_bookmark_change = saved
             tmp.cleanup()
+
+    def test_subfolder_suggestion_and_save(self):
+        self.fake.tabs = [st.Tab(1, i + 1, t, u) for i, (t, u) in enumerate([
+            ("Lofi beats to study - YouTube", "https://www.youtube.com/watch?v=1"),
+            ("Jazz lofi mix - YouTube", "https://www.youtube.com/watch?v=2"),
+            ("Python tutorial for beginners", "https://www.youtube.com/watch?v=3"),
+            ("Advanced python decorators", "https://vimeo.com/123"),
+        ])]
+        res = self.rpc([self.call(1, "safari_tabs_ueberblick", {"andere_geraete": False}),
+                        self.call(2, "safari_unterordner_vorschlagen")])
+        hints = json.loads(res[1]["result"]["content"][0]["text"])["ordner"]
+        video = next(h for h in hints if h["ordner"] == "Lesezeichenmenü/Video")
+        self.assertEqual(len(video["tabs"]), 4)
+        self.assertEqual(video["gemeinsame_seiten"]["youtube.com"], [1, 2, 3])
+        self.assertEqual(video["haeufige_woerter"]["lofi"], [1, 2])
+        self.assertEqual(video["haeufige_woerter"]["python"], [3, 4])
+
+        res = self.rpc([
+            self.call(3, "safari_lesezeichen_speichern", {"eintraege": [
+                {"nummer": 1, "ordner": "Video/Musik"}]}),
+        ])
+        out = json.loads(res[0]["result"]["content"][0]["text"])
+        self.assertIn("neue_ordner_erlaubt", out["probleme"][0])
+        self.rpc([self.call(4, "safari_tabs_ueberblick", {"andere_geraete": False})])
+        res = self.rpc([
+            self.call(5, "safari_lesezeichen_speichern", {"neue_ordner_erlaubt": True,
+                                                          "eintraege": [
+                {"nummer": 1, "ordner": "Video/Musik"},
+                {"nummer": 2, "ordner": "Video/Musik"},
+                {"nummer": 3, "ordner": "Video/Programmieren"}]}),
+        ])
+        out = json.loads(res[0]["result"]["content"][0]["text"])
+        self.assertEqual(out["neue_ordner"], ["Lesezeichenmenü/Video/Musik",
+                                              "Lesezeichenmenü/Video/Programmieren"])
+        self.assertEqual(self.fake.saved, {"Lesezeichenmenü/Video/Musik": 2,
+                                           "Lesezeichenmenü/Video/Programmieren": 1})
+        menu = self.fake.root["Children"][1]["Children"]
+        video_node = next(c for c in menu if c["Title"] == "Video")
+        subs = [c["Title"] for c in video_node["Children"]
+                if c.get("WebBookmarkType") == "WebBookmarkTypeList"]
+        self.assertEqual(subs, ["Musik", "Programmieren"])
+        self.assertEqual(sum(1 for c in menu if c["Title"] == "Video"), 1)
 
     def test_unknown_method(self):
         res = self.rpc([{"jsonrpc": "2.0", "id": 9, "method": "foo/bar"}])

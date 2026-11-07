@@ -29,7 +29,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.4.0"
+SERVER_VERSION = "1.5.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -57,7 +57,7 @@ def tool_overview(args: Dict) -> Dict:
     plan = st.analyze(tabs, cfg, st.bookmark_index(root, cfg["tracking_params"]))
     if folders:
         st.assign_folders(plan, folders, cfg)
-    STATE.update(plan=plan, folders=folders, cfg=cfg, mode=mode)
+    STATE.update(plan=plan, folders=folders, cfg=cfg, mode=mode, root=root)
 
     hosts: Dict[str, int] = {}
     for t in tabs:
@@ -190,16 +190,19 @@ def tool_save(args: Dict) -> Dict:
         if not target:
             problems.append(f"Tab {t.num}: kein Ordner angegeben")
             continue
-        f = _resolve_folder(target, folders)
+        try:
+            f, new_path = st.resolve_target(target, folders)
+        except st.AmbiguousFolder as e:
+            problems.append(f"Tab {t.num}: {e}")
+            continue
         if f:
             t.target_key, t.target_path, t.target_new = f.key, f.path, False
         else:
             if not args.get("neue_ordner_erlaubt", False):
-                problems.append(f"Tab {t.num}: Ordner „{target}“ gibt es nicht "
-                                "(neue Ordner nur mit neue_ordner_erlaubt=true)")
+                problems.append(f"Tab {t.num}: Ordner „{new_path}“ gibt es nicht "
+                                "(neue Ordner/Unterordner nur mit neue_ordner_erlaubt=true)")
                 continue
-            clean = target[:-6].strip() if target.lower().endswith(" (neu)") else target
-            st.set_new_target(t, clean)
+            st.set_new_target(t, new_path)
             new_folders.add(t.target_path)
         to_save.append(t)
     if not to_save:
@@ -347,7 +350,35 @@ def tool_restore(args: Dict) -> Dict:
     return out
 
 
+def tool_subfolders(args: Dict) -> Dict:
+    plan = _require_plan()
+    hints = st.subfolder_hints(plan, STATE["folders"], STATE.get("root"),
+                               min_tabs=int(args.get("mindestens_tabs", 3)))
+    return {
+        "ordner": hints,
+        "anleitung": (
+            "Schlage pro Ordner 2–6 Unterordner mit kurzen Namen vor (Sprache wie die "
+            "vorhandenen Ordner), je mindestens 2 Tabs; nutze vorhandene Unterordner, wenn "
+            "sie passen. Tabs, die nirgends passen, bleiben direkt im Ordner. Zeige den "
+            "Vorschlag als Baum, warte auf OK und speichere dann mit "
+            "safari_lesezeichen_speichern, ordner = „<Ordner>/<Unterordner>“, "
+            "neue_ordner_erlaubt=true."),
+    }
+
+
 TOOLS = {
+    "safari_unterordner_vorschlagen": {
+        "fn": tool_subfolders,
+        "description": (
+            "Liefert für jeden Ziel-Ordner mit mehreren Tabs die Tabs samt gemeinsamen Websites "
+            "und häufigen Stichwörtern sowie vorhandene Unterordner – als Grundlage, um "
+            "passende Unterordner vorzuschlagen (z. B. Video/Musik, Article/KI). Benötigt "
+            "vorher safari_tabs_ueberblick. Ändert nichts."),
+        "inputSchema": {"type": "object", "properties": {
+            "mindestens_tabs": {"type": "integer",
+                                "description": "nur Ordner mit mindestens so vielen Tabs (Standard 3)"}}},
+        "annotations": {"title": "Unterordner vorschlagen", "readOnlyHint": True},
+    },
     "safari_lesezeichen_suchen": {
         "fn": tool_search,
         "description": (
@@ -458,7 +489,10 @@ TOOLS = {
                         "type": "object",
                         "properties": {
                             "nummer": {"type": "integer", "description": "Tab-Nummer"},
-                            "ordner": {"type": "string", "description": "Ordnerpfad oder -name"},
+                            "ordner": {"type": "string", "description": (
+                                "Ordnerpfad oder -name; Unterordner mit „/“, z. B. "
+                                "„Video/Musik“ (wird bei neue_ordner_erlaubt=true im "
+                                "vorhandenen Ordner „Video“ angelegt)")},
                         },
                         "required": ["nummer", "ordner"],
                     },
@@ -496,12 +530,30 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
 
 Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Zugriff: Hat die Erweiterung selbst keinen Festplattenvollzugriff, liest und schreibt sie die Lesezeichen über ein kurz geöffnetes Terminal-Fenster (`zugriff_ueber`: Terminal). Sag mir dann kurz, dass ich das Fenster schließen kann. Ist `lesezeichen_zugriff` trotzdem false, erkläre mir genau den `hinweis` (meist: Festplattenvollzugriff für **Terminal** einschalten) und rufe danach auf mein „weiter“ hin `safari_tabs_ueberblick` erneut auf.
 
+Unterordner: Passen in einen Ordner viele Tabs zu verschiedenen Themen, biete an, mit `safari_unterordner_vorschlagen` passende Unterordner vorzuschlagen (Ordnerangabe dann „Video/Musik“, nur mit meinem OK und `neue_ordner_erlaubt: true`).
+
 Korrekturen: Ist etwas falsch eingetragen, nutze `safari_lesezeichen_verlauf` bzw. `safari_lesezeichen_suchen`, zeig mir genau, was entfernt würde, und entferne es nach meinem OK mit `safari_lesezeichen_entfernen` (für die ganze letzte Speicherung: `letzte_speicherung_rueckgaengig`). Danach trägst du – wieder nach OK – die richtigen Einträge mit `safari_lesezeichen_speichern` ein (dafür vorher `safari_tabs_ueberblick` aufrufen). Eine Sicherung zurückspielen (`safari_sicherung_zurueckspielen`) nur, wenn gezieltes Entfernen nicht reicht. Prüfe nach dem Entfernen nach etwa einer Minute mit `safari_lesezeichen_suchen`, ob iCloud die Einträge zurückgebracht hat."""
 
 PROMPTS = {
     "tabs-aufraeumen": {
         "description": "Safari-Tabs analysieren, Unnötige schließen, Rest in Lesezeichen-Ordner einsortieren",
         "text": PROMPT_TEXT,
+    },
+    "unterordner-erstellen": {
+        "description": "Passende Unterordner für die Tabs vorschlagen und anlegen",
+        "text": (
+            "Hilf mir, meine Safari-Tabs in passende Unterordner meiner vorhandenen "
+            "Lesezeichen-Ordner einzusortieren. Antworte auf Deutsch.\n"
+            "1. Rufe `safari_tabs_ueberblick` und danach `safari_unterordner_vorschlagen` auf.\n"
+            "2. Schlage pro Ordner 2–6 Unterordner vor (kurze Namen in der Sprache meiner "
+            "Ordner, je mindestens 2 Tabs, vorhandene Unterordner wiederverwenden). Zeig den "
+            "Vorschlag als Baum, z. B. „Video → Musik (5), Doku (3)“, mit den Tab-Titeln.\n"
+            "3. Ich kann Namen ändern, Unterordner zusammenlegen oder Tabs verschieben.\n"
+            "4. Erst nach meinem OK: `safari_lesezeichen_speichern` mit ordner "
+            "„<Ordner>/<Unterordner>“ und `neue_ordner_erlaubt: true`. Sag vorher, dass Safari "
+            "kurz beendet wird.\n"
+            "5. Erwähne, dass ich alles mit „mach das rückgängig“ wieder entfernen kann "
+            "(die neuen Unterordner verschwinden dann mit)."),
     },
     "lesezeichen-korrigieren": {
         "description": "Falsch eingetragene Lesezeichen finden und entfernen",

@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "safari-tabs",
   "display_name": "Safari-Tabs aufräumen",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Analysiert deine Safari-Tabs auf Mac und iPhone/iPad, empfiehlt welche geschlossen werden können und sortiert den Rest in deine vorhandenen Lesezeichen-Ordner ein.",
   "long_description": "Claude liest deine offenen Safari-Tabs – auf dem Mac und über iCloud auch von iPhone und iPad –, zeigt einen Überblick mit Empfehlung (Duplikate, Suchergebnisse, Login- und Fehlerseiten, bereits gespeicherte Seiten …) und schließt nach deiner Bestätigung die überflüssigen Tabs. Danach werden die übrigen Tabs in deine vorhandenen Lesezeichen-Ordner einsortiert (z. B. Video, Article, Tool, Shop). Vor jeder Änderung an den Lesezeichen wird eine Sicherung angelegt. Tabs auf iPhone/iPad werden nicht automatisch geschlossen; dafür gibt es eine Checkliste. Nur macOS.",
   "author": {
@@ -26,6 +26,10 @@
     {
       "name": "safari_tabs_ueberblick",
       "description": "Überblick über alle Safari-Tabs mit Empfehlung und Ordnervorschlägen"
+    },
+    {
+      "name": "safari_unterordner_vorschlagen",
+      "description": "Passende Unterordner für die Tabs vorschlagen"
     },
     {
       "name": "safari_tabs_schliessen",
@@ -58,6 +62,12 @@
       "description": "Safari-Tabs analysieren, Unnötige schließen, Rest in Lesezeichen-Ordner einsortieren",
       "arguments": [],
       "text": "Hilf mir, meine Safari-Tabs auf Mac und iPhone aufzuräumen: Zeig mir zuerst einen Überblick und eine Empfehlung, welche Tabs ich schließen kann, und sortiere danach die übrigen in meine vorhandenen Lesezeichen-Ordner ein. Frag mich vor jedem Schritt."
+    },
+    {
+      "name": "unterordner-erstellen",
+      "description": "Passende Unterordner für die Tabs vorschlagen und anlegen",
+      "arguments": [],
+      "text": "Hilf mir, meine Safari-Tabs in passende Unterordner meiner vorhandenen Lesezeichen-Ordner einzusortieren: schlag Unterordner vor, zeig sie mir als Baum und leg sie erst nach meinem OK an."
     },
     {
       "name": "lesezeichen-korrigieren",

@@ -344,6 +344,39 @@ class CorrectionTest(unittest.TestCase):
         names = [b["name"] for b in st.list_backups(self.path)]
         self.assertIn(backup, names)
 
+    def test_subfolders_created_inside_existing_and_undone(self):
+        folders = st.collect_folders(self.root())
+        f, new = st.resolve_target("Video/Musik/Live", folders)
+        self.assertIsNone(f)
+        self.assertEqual(new, "Lesezeichenmenü/Video/Musik/Live")
+        t = st.Tab(0, 0, "Konzert", "https://www.youtube.com/watch?v=live")
+        st.set_new_target(t, new)
+        entry = st.edit_bookmarks({"add": [st._tab_to_dict(t)]}, self.path)
+        self.assertEqual([o["titel"] for o in entry["ordner_neu"]],
+                         ["Lesezeichenmenü/Video/Musik", "Lesezeichenmenü/Video/Musik/Live"])
+        self.assertEqual(self.urls_in("Lesezeichenmenü/Video/Musik/Live"),
+                         ["https://www.youtube.com/watch?v=live"])
+        # zweiter Eintrag in denselben (jetzt vorhandenen) Unterordner
+        folders = st.collect_folders(self.root())
+        f, new = st.resolve_target("Musik/Live", folders)
+        self.assertEqual(f.path, "Lesezeichenmenü/Video/Musik/Live")
+        # rückgängig: Lesezeichen und beide neuen (leeren) Ordner weg, Video bleibt
+        st.edit_bookmarks(st.undo_change_for(st.last_undoable()), self.path)
+        video = next(c for c in self.root()["Children"][1]["Children"] if c["Title"] == "Video")
+        self.assertEqual([c.get("Title") for c in video["Children"]
+                          if c.get("WebBookmarkType") == "WebBookmarkTypeList"], [])
+        self.assertEqual(self.urls_in("Video"), ["https://www.youtube.com/watch?v=ok"])
+
+    def test_ambiguous_subfolder_name(self):
+        from make_sample_plist import folder
+        folders = [st.Folder(key="a", path="Lesezeichenmenü/Video/Musik", title="Musik", depth=2),
+                   st.Folder(key="b", path="Lesezeichenmenü/Book/Musik", title="Musik", depth=2)]
+        with self.assertRaises(st.AmbiguousFolder):
+            st.resolve_target("Musik", folders)
+        f, _ = st.resolve_target("Book/Musik", folders)
+        self.assertEqual(f.key, "b")
+        self.assertTrue(folder)
+
     def test_restore_rejects_bad_names(self):
         for bad in ("../../etc/passwd", "Bookmarks.plist", "Bookmarks.plist.backup-x"):
             with self.assertRaises(ValueError):

@@ -945,6 +945,121 @@ def assign_folders(plan: Plan, folders: List[Folder], cfg: Dict) -> None:
             set_new_target(t, cfg["fallback_folder"], "kein passender Ordner")
 
 
+class AmbiguousFolder(ValueError):
+    pass
+
+
+def find_folder(name: str, folders: List[Folder], partial: bool = True) -> Optional[Folder]:
+    """Ordner per Pfad, Pfad-Ende („Video/Musik“), Name oder eindeutigem Teilnamen."""
+    n = name.strip().strip("/")
+    if n.lower().endswith(" (neu)"):
+        n = n[:-6].strip()
+    low = n.lower()
+    if not low:
+        return None
+    for f in folders:
+        if f.path.lower() == low:
+            return f
+    hits = [f for f in folders if f.path.lower().endswith("/" + low)
+            or ("/" not in low and f.title.lower() == low)]
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        raise AmbiguousFolder(f"Ordner „{n}“ ist mehrdeutig: "
+                              + ", ".join(f.path for f in hits) + " – bitte den Pfad angeben.")
+    if partial and "/" not in low:
+        part = [f for f in folders if low in f.title.lower()]
+        if len(part) == 1:
+            return part[0]
+    return None
+
+
+def resolve_target(dest: str, folders: List[Folder]) -> Tuple[Optional[Folder], Optional[str]]:
+    """(vorhandener Ordner, None) oder (None, Pfad des neu anzulegenden Ordners).
+
+    „Video/Musik“ → existiert „Lesezeichenmenü/Video“, aber kein „Musik“ darin,
+    wird „Lesezeichenmenü/Video/Musik“ als neuer Unterordner angelegt.
+    """
+    d = dest.strip().strip("/")
+    if d.lower().endswith(" (neu)"):
+        d = d[:-6].strip()
+    f = find_folder(d, folders)
+    if f:
+        return f, None
+    parts = [p.strip() for p in d.split("/") if p.strip()]
+    for i in range(len(parts) - 1, 0, -1):
+        parent = find_folder("/".join(parts[:i]), folders)
+        if parent:
+            return None, parent.path + "/" + "/".join(parts[i:])
+    return None, "/".join(parts)
+
+
+TITLE_STOPWORDS = {
+    # Deutsch
+    "der", "die", "das", "und", "oder", "für", "mit", "von", "den", "dem", "des", "ein",
+    "eine", "einen", "ist", "sind", "wie", "was", "warum", "auf", "aus", "bei", "zum",
+    "zur", "nicht", "auch", "nach", "über", "unter", "mehr", "neue", "neuen", "alle",
+    "dein", "deine", "ihre", "euer", "sich", "wird", "werden", "kann", "hier", "jetzt",
+    "heute", "online", "kaufen", "teil",
+    # Englisch
+    "the", "and", "for", "with", "from", "your", "you", "how", "what", "why", "this",
+    "that", "are", "was", "will", "can", "into", "about", "best", "new", "all", "more",
+    "guide", "official", "video", "videos", "home", "page", "free", "part", "episode",
+    # Seitennamen
+    "youtube", "github", "reddit", "amazon", "medium", "substack", "google", "wikipedia",
+    "news", "blog", "www", "com", "html",
+}
+
+
+def _title_words(text: str) -> set:
+    return {w for w in re.findall(r"[a-zäöüß][a-zäöüß0-9+#-]{2,}", (text or "").lower())
+            if w not in TITLE_STOPWORDS and not w.isdigit()}
+
+
+def subfolder_hints(plan: Plan, folders: List[Folder], root: Optional[Dict],
+                    min_tabs: int = 3) -> List[Dict]:
+    """Gruppiert die Tabs je Zielordner nach gemeinsamer Website und häufigen Wörtern –
+    als Grundlage für Unterordner-Vorschläge. Vorhandene Lesezeichen im Ordner zählen mit."""
+    by_folder: Dict[str, List[Tab]] = {}
+    for t in plan.by_action(BOOKMARK):
+        if t.target_path:
+            by_folder.setdefault(t.target_path, []).append(t)
+    existing: Dict[str, List[Tuple[str, str]]] = {}
+    if root:
+        for _, leaf, path in iter_leaves_with_path(root):
+            existing.setdefault(path, []).append((_leaf_title(leaf), leaf.get("URLString", "")))
+    out = []
+    for path, tabs in sorted(by_folder.items(), key=lambda x: -len(x[1])):
+        if len(tabs) < min_tabs:
+            continue
+        subs = sorted({f.path[len(path) + 1:].split("/")[0] for f in folders
+                       if f.path.startswith(path + "/")})
+        sites: Dict[str, List[int]] = {}
+        words: Dict[str, List[int]] = {}
+        for t in tabs:
+            h = _bare_host(t.host)
+            sites.setdefault(h, []).append(t.num)
+            for w in _title_words(t.title) - _tokens(h):
+                words.setdefault(w, []).append(t.num)
+        old_words: Dict[str, int] = {}
+        for title, _url in existing.get(path, []):
+            for w in _title_words(title):
+                old_words[w] = old_words.get(w, 0) + 1
+        out.append({
+            "ordner": path,
+            "vorhandene_unterordner": subs,
+            "tabs": [{"nr": t.num, "titel": t.title, "seite": _bare_host(t.host)} for t in tabs],
+            "gemeinsame_seiten": {h: n for h, n in sorted(sites.items(), key=lambda x: -len(x[1]))
+                                  if len(n) >= 2},
+            "haeufige_woerter": {w: n for w, n in sorted(words.items(), key=lambda x: -len(x[1]))
+                                 if len(n) >= 2},
+            "vorhandene_lesezeichen": len(existing.get(path, [])),
+            "haeufige_woerter_vorhandene": dict(sorted(
+                ((w, n) for w, n in old_words.items() if n >= 3), key=lambda x: -x[1])[:15]),
+        })
+    return out
+
+
 def set_new_target(t: Tab, name: str, why: str = "") -> None:
     t.target_key = "new:" + name
     t.target_path = name
@@ -1245,17 +1360,30 @@ def add_to_existing_folders(root: Dict, tabs: List[Tab], cfg: Dict,
             continue
         node = None if t.target_new else idx.get(t.target_key) or idx.get(t.target_path)
         if node is None:
-            # neuen Ordner auf oberster Ebene anlegen (bzw. gleichnamigen wiederverwenden)
             node = idx.get(t.target_path)
-            if node is None:
-                node = _new_folder(t.target_path)
-                pos = max((i + 1 for i, c in enumerate(children)
-                           if c.get("Title") in SPECIAL_TITLES), default=0)
-                children.insert(pos, node)
-                idx[t.target_path] = node
+        if node is None:
+            # neuen Ordner anlegen – bei „Video/Musik“ als Unterordner des
+            # längsten vorhandenen Teilpfads, sonst auf oberster Ebene
+            parts = [p for p in t.target_path.split("/") if p]
+            i = len(parts) - 1
+            while i > 0 and "/".join(parts[:i]) not in idx:
+                i -= 1
+            parent = idx.get("/".join(parts[:i])) if i > 0 else None
+            for j in range(i, len(parts)):
+                new = _new_folder(parts[j])
+                if parent is None:
+                    pos = max((k + 1 for k, c in enumerate(children)
+                               if c.get("Title") in SPECIAL_TITLES), default=0)
+                    children.insert(pos, new)
+                else:
+                    parent.setdefault("Children", []).append(new)
+                sub_path = "/".join(parts[: j + 1])
+                idx[sub_path] = new
                 if log is not None:
                     log.setdefault("ordner_neu", []).append(
-                        {"id": node["WebBookmarkUUID"], "titel": t.target_path})
+                        {"id": new["WebBookmarkUUID"], "titel": sub_path})
+                parent = new
+            node = parent
         leaf = _new_leaf(t.title, url)
         node.setdefault("Children", []).append(leaf)
         if log is not None:
@@ -1378,12 +1506,12 @@ def remove_from_tree(root: Dict, items: List[Dict], cfg: Dict,
     if ids:
         def prune(node: Dict) -> None:
             kids = node.get("Children", []) or []
+            for c in kids:                       # zuerst die Unterordner
+                if c.get("WebBookmarkType") == "WebBookmarkTypeList":
+                    prune(c)
             node["Children"] = [c for c in kids if not (
                 c.get("WebBookmarkType") == "WebBookmarkTypeList"
                 and c.get("WebBookmarkUUID") in ids and not c.get("Children"))]
-            for c in node["Children"]:
-                if c.get("WebBookmarkType") == "WebBookmarkTypeList":
-                    prune(c)
         prune(root)
     return removed
 
@@ -1708,7 +1836,8 @@ def step_bookmarks(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[boo
         print(f"\nSchritt 2/2 · {n} Tabs in deine Lesezeichen-Ordner einsortieren?")
         print("  Enter/j = ja · n = nicht speichern · q = abbrechen\n"
               "  ändern: 'o' Ordnerliste zeigen · '4>12' Tab 4 in Ordner 12 · "
-              "'4>Neuer Name' neuer Ordner · '4x' Tab 4 nicht speichern")
+              "'4>Neuer Name' neuer Ordner · '4>Video/Musik' Unterordner · "
+              "'4x' Tab 4 nicht speichern")
         ans = _ask("> ")
         if ans is None or ans.lower() == "q":
             return None
@@ -1739,18 +1868,16 @@ def step_bookmarks(plan: Plan, cfg: Dict, folders: List[Folder]) -> Optional[boo
                     t.target_key, t.target_path = f.key, f.path
                     t.target_new, t.target_why = False, "manuell"
                 else:
-                    dl = dest.lower()
-                    existing = next((f for f in folders if dl in
-                                     (f.path.lower(), f.title.lower())), None)
-                    if existing is None:
-                        # eindeutiger Teiltreffer, z. B. "musik" → "Musik & Videos"
-                        partial = [f for f in folders if dl in f.title.lower()]
-                        existing = partial[0] if len(partial) == 1 else None
+                    try:
+                        existing, new_path = resolve_target(dest, folders)
+                    except AmbiguousFolder as e:
+                        print(f"  ? {e}")
+                        continue
                     if existing:
                         t.target_key, t.target_path = existing.key, existing.path
                         t.target_new, t.target_why = False, "manuell"
                     else:
-                        set_new_target(t, dest, "manuell")
+                        set_new_target(t, new_path, "manuell")
         print_bookmark_list(plan, bool(folders))
 
 
