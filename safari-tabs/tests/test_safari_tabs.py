@@ -467,5 +467,138 @@ class CorrectionTest(unittest.TestCase):
                 st.edit_bookmarks({"restore": bad}, self.path)
 
 
+class AutomationTest(unittest.TestCase):
+    def setUp(self):
+        from make_sample_plist import folder, leaf
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.saved = {k: getattr(st, k) for k in (
+            "BRIDGE_DIR", "BOOKMARKS_PLIST", "safari_running", "user_idle_seconds",
+            "read_all_tabs", "read_safari_tabs", "close_tabs", "notify", "load_bookmarks_any",
+            "apply_bookmark_change", "subprocess")}
+        st.BRIDGE_DIR = base / "bridge"
+        st.BOOKMARKS_PLIST = base / "Bookmarks.plist"
+        self.root = {"Children": [folder("BookmarksBar", []), folder("BookmarksMenu", [
+            folder("Video", [leaf("https://www.youtube.com/watch?v=a", "a"),
+                             leaf("https://www.youtube.com/watch?v=b", "b")]),
+            folder("Article", [leaf("https://www.spiegel.de/x", "x")])])]}
+        st.BOOKMARKS_PLIST.write_bytes(plistlib.dumps(self.root, fmt=plistlib.FMT_BINARY))
+        self.tabs = [
+            st.Tab(1, 1, "Lofi - YouTube", "https://www.youtube.com/watch?v=lofi"),
+            st.Tab(1, 2, "Lofi - YouTube", "https://m.youtube.com/watch?v=lofi"),
+            st.Tab(1, 3, "katzen - Google Suche", "https://www.google.com/search?q=katzen"),
+            st.Tab(1, 4, "Restaurant Luigi", "https://luigi-restaurant.de/"),
+            st.Tab(1, 5, "Gmail", "https://mail.google.com/mail/u/0/"),
+        ]
+        self.closed, self.notes, self.idle = [], [], 3600
+        st.safari_running = lambda: True
+        st.user_idle_seconds = lambda: self.idle
+        st.read_all_tabs = lambda include_cloud=True, cloud_db=None: (list(self.tabs), [], None)
+        st.read_safari_tabs = lambda: list(self.tabs)
+        st.close_tabs = lambda tabs: (self.closed.extend(t.url for t in tabs) or
+                                      {"closed": len(tabs), "skipped": 0})
+        st.notify = lambda title, text: self.notes.append(text)
+        st.load_bookmarks_any = lambda allow_terminal=True: (
+            plistlib.loads(st.BOOKMARKS_PLIST.read_bytes()), "direkt", None)
+        st.apply_bookmark_change = lambda change, via_terminal=None: {
+            "ok": True, **st.edit_bookmarks(change, st.BOOKMARKS_PLIST)}
+
+    def tearDown(self):
+        for k, v in self.saved.items():
+            setattr(st, k, v)
+        self.tmp.cleanup()
+
+    def test_first_run_only_checks_permissions(self):
+        self.assertEqual(st.run_auto(), 0)
+        self.assertTrue(st.load_auto_state()["berechtigt"])
+        self.assertEqual(self.closed, [])
+        self.assertIn("Eingerichtet", self.notes[0])
+
+    def test_run_closes_safe_saves_sure_and_leaves_rest(self):
+        st.save_auto_state({"berechtigt": True})
+        self.assertEqual(st.run_auto(), 0)
+        self.assertEqual(self.closed, ["https://m.youtube.com/watch?v=lofi",
+                                       "https://www.google.com/search?q=katzen"])
+        hits = st.search_bookmarks(plistlib.loads(st.BOOKMARKS_PLIST.read_bytes()), "lofi")
+        self.assertEqual([(h["ordner"]) for h in hits], ["Lesezeichenmenü/Video"])
+        state = st.load_auto_state()
+        res = state["letztes_ergebnis"]
+        self.assertEqual((res["geschlossen"], res["gespeichert"], res["zur_pruefung"]), (2, 1, 1))
+        report = Path(res["bericht"]).read_text(encoding="utf-8")
+        self.assertIn("Restaurant Luigi", report)               # unsicher → zur Prüfung
+        self.assertNotIn("Gmail", report.split("## Zur Prüfung")[1])  # Web-App bleibt einfach offen
+        self.assertIn("2 geschlossen · 1 gespeichert · 1 zur Prüfung", self.notes[-1])
+        # rückgängig über den Verlauf
+        self.assertEqual(st.last_undoable()["aktion"], "Automatik: Lesezeichen gespeichert")
+        # am selben Tag nicht noch einmal
+        self.closed.clear()
+        self.assertEqual(st.run_auto(), 0)
+        self.assertEqual(self.closed, [])
+
+    def test_not_while_mac_in_use(self):
+        st.save_auto_state({"berechtigt": True})
+        self.idle = 30
+        st.run_auto()
+        self.assertEqual(self.closed, [])
+        self.assertIsNone(st.load_auto_state().get("letzter_lauf"))
+        st.run_auto(force=True)
+        self.assertTrue(self.closed)
+
+    def test_due_logic(self):
+        now = st._dt.datetime(2026, 11, 10, 12, 0)
+        state = {"einstellungen": dict(st.AUTO_DEFAULTS)}
+        self.assertTrue(st.auto_due(state, now))
+        state["letzter_lauf"] = "2026-11-10T08:00:00"
+        self.assertFalse(st.auto_due(state, now))
+        state["letzter_lauf"] = "2026-11-09T23:00:00"
+        self.assertTrue(st.auto_due(state, now))
+        state["einstellungen"]["haeufigkeit"] = "woechentlich"
+        self.assertFalse(st.auto_due(state, now))
+        state["letzter_lauf"] = "2026-11-03T11:00:00"
+        self.assertTrue(st.auto_due(state, now))
+
+    def test_install_writes_launch_agent(self):
+        calls = []
+        home = Path(self.tmp.name) / "home"
+
+        class FakeSub:
+            SubprocessError = st.subprocess.SubprocessError
+
+            @staticmethod
+            def run(cmd, *a, **k):
+                calls.append(cmd)
+                return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        st.subprocess = FakeSub
+        orig_platform, orig_home = sys.platform, st.Path.home
+        try:
+            sys.platform = "darwin"
+            st.Path.home = staticmethod(lambda: home)
+            res = st.install_automation({"haeufigkeit": "woechentlich", "inaktiv_minuten": 30})
+            plist = plistlib.loads(Path(res["plist"]).read_bytes())
+            self.assertEqual(plist["Label"], st.AUTO_LABEL)
+            self.assertEqual(plist["ProgramArguments"][2], "--auto")
+            self.assertTrue(Path(plist["ProgramArguments"][1]).exists())
+            self.assertEqual(plist["StartInterval"], 3600)
+            self.assertEqual(st.load_auto_state()["einstellungen"]["inaktiv_minuten"], 30)
+            self.assertTrue(any(c[:2] == ["launchctl", "bootstrap"] for c in calls))
+            self.assertTrue(st.automation_status()["aktiv"])
+            self.assertTrue(st.uninstall_automation()["entfernt"])
+            self.assertFalse(st.automation_status()["aktiv"])
+        finally:
+            sys.platform = orig_platform
+            st.Path.home = orig_home
+
+    def test_idle_parsing(self):
+        class FakeSub:
+            SubprocessError = st.subprocess.SubprocessError
+
+            @staticmethod
+            def run(cmd, *a, **k):
+                return type("R", (), {"stdout": '  | |   "HIDIdleTime" = 1234000000000\n'})()
+        st.subprocess = FakeSub
+        st.user_idle_seconds = self.saved["user_idle_seconds"]
+        self.assertAlmostEqual(st.user_idle_seconds(), 1234.0)
+
+
 if __name__ == "__main__":
     unittest.main()

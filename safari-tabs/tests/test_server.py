@@ -109,9 +109,10 @@ class ServerSessionTest(unittest.TestCase):
         ])
         self.assertEqual([r["id"] for r in res], [1, 2, 3, 4, 5])
         self.assertEqual(res[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(res[1]["result"]["tools"]), 12)
+        self.assertEqual(len(res[1]["result"]["tools"]), 15)
         self.assertEqual([p["name"] for p in res[2]["result"]["prompts"]],
-                         ["tabs-aufraeumen", "unterordner-erstellen", "lesezeichen-korrigieren"])
+                         ["tabs-aufraeumen", "unterordner-erstellen", "automatik",
+                          "lesezeichen-korrigieren"])
         self.assertIn("safari_tabs_ueberblick",
                       res[3]["result"]["messages"][0]["content"]["text"])
         ov = json.loads(res[4]["result"]["content"][0]["text"])

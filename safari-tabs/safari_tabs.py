@@ -348,6 +348,7 @@ class Tab:
     target_path: str = ""    # Anzeige, z. B. "Favoriten/Dev"
     target_new: bool = False  # Ordner existiert noch nicht
     target_why: str = ""
+    target_score: float = 0.0  # wie sicher die Ordner-Zuordnung ist
     device: str = ""         # leer = dieser Mac, sonst z. B. "iPhone von Jürgen"
 
     @property
@@ -944,6 +945,7 @@ def assign_folders(plan: Plan, folders: List[Folder], cfg: Dict) -> None:
         if best and best_score >= threshold:
             t.target_key, t.target_path = best.key, best.path
             t.target_new, t.target_why = False, best_why
+            t.target_score = best_score
         elif cfg.get("fallback_folder"):
             set_new_target(t, cfg["fallback_folder"], "kein passender Ordner")
         else:
@@ -2351,6 +2353,275 @@ def default_export_path() -> Path:
     return base / f"safari-lesezeichen-{_dt.datetime.now():%Y%m%d-%H%M}.html"
 
 
+
+# --------------------------------------------------------------------------
+# Automatik: regelmäßig im Hintergrund aufräumen (macOS launchd)
+# --------------------------------------------------------------------------
+AUTO_LABEL = "com.safari-tabs.automatik"
+AUTO_DEFAULTS: Dict = {
+    "haeufigkeit": "taeglich",       # taeglich | woechentlich
+    "inaktiv_minuten": 15,           # nur laufen, wenn Mac so lange nicht benutzt wurde
+    "schliessen": True,              # eindeutig überflüssige Tabs schließen
+    "speichern": True,               # Tabs mit sicherer Ordner-Zuordnung speichern
+    "min_score": 10,                 # Mindest-Sicherheit der Zuordnung
+    "gespeicherte_schliessen": False,  # gespeicherte Tabs danach schließen
+    "benachrichtigen": True,
+}
+# nur diese Gründe gelten als eindeutig überflüssig
+AUTO_SAFE_CLOSE = ("leerer Tab", "Duplikat", "auch am Mac", "auch auf", "Suchergebnis",
+                   "Login-", "Fehlerseite", "schon gespeichert", "schon als Lesezeichen")
+
+
+def _auto_file() -> Path:
+    return BRIDGE_DIR / "automatik.json"
+
+
+def _launch_plist() -> Path:
+    return Path.home() / "Library" / "LaunchAgents" / f"{AUTO_LABEL}.plist"
+
+
+def load_auto_state() -> Dict:
+    try:
+        st_ = json.loads(_auto_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        st_ = {}
+    st_["einstellungen"] = {**AUTO_DEFAULTS, **st_.get("einstellungen", {})}
+    return st_
+
+
+def save_auto_state(state: Dict) -> None:
+    BRIDGE_DIR.mkdir(exist_ok=True)
+    _auto_file().write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def user_idle_seconds() -> float:
+    """Sekunden seit der letzten Maus-/Tastatureingabe (macOS)."""
+    try:
+        out = subprocess.run(["ioreg", "-c", "IOHIDSystem"], capture_output=True,
+                             text=True, timeout=5).stdout
+        m = re.search(r'"HIDIdleTime"\s*=\s*(\d+)', out)
+        return int(m.group(1)) / 1e9 if m else 0.0
+    except (OSError, subprocess.SubprocessError):
+        return 0.0
+
+
+def auto_due(state: Dict, now: Optional[_dt.datetime] = None) -> bool:
+    now = now or _dt.datetime.now()
+    last = state.get("letzter_lauf")
+    if not last:
+        return True
+    try:
+        last_d = _dt.datetime.fromisoformat(last)
+    except ValueError:
+        return True
+    if state["einstellungen"].get("haeufigkeit") == "woechentlich":
+        return (now - last_d).days >= 7
+    return now.date() > last_d.date()
+
+
+def plan_auto(plan: Plan, opts: Dict) -> Tuple[List[Tab], List[Tab], List[Tab]]:
+    """(schließen, speichern, zur Prüfung) – nur Eindeutiges wird automatisch erledigt."""
+    close = [t for t in plan.by_action(CLOSE) if not t.remote
+             and t.reason.startswith(AUTO_SAFE_CLOSE)] if opts.get("schliessen") else []
+    save, review = [], []
+    for t in plan.by_action(BOOKMARK):
+        if (opts.get("speichern") and t.target_path and not t.target_new
+                and t.target_score >= opts.get("min_score", 10)):
+            save.append(t)
+        else:
+            review.append(t)
+    return close, save, review
+
+
+def notify(title: str, text: str) -> None:
+    if sys.platform != "darwin":
+        return
+    script = ("function run(argv){ var a = Application.currentApplication(); "
+              "a.includeStandardAdditions = true; "
+              "a.displayNotification(argv[1], {withTitle: argv[0]}); }")
+    subprocess.run(["osascript", "-l", "JavaScript", "-e", script, title, text],
+                   capture_output=True)
+
+
+def _auto_report(close: List[Tab], save: List[Tab], review: List[Tab], result: Dict) -> Path:
+    d = BRIDGE_DIR / "berichte"
+    d.mkdir(parents=True, exist_ok=True)
+    out = d / f"{_dt.datetime.now():%Y-%m-%d_%H%M}.md"
+    lines = [f"# Safari-Tabs Automatik – {_dt.datetime.now():%d.%m.%Y %H:%M}", ""]
+    if close:
+        lines += [f"## Geschlossen ({len(close)})", ""] + \
+                 [f"- {t.title or t.url} — {t.reason}" for t in close] + [""]
+    if save:
+        lines += [f"## Gespeichert ({len(save)})", ""] + \
+                 [f"- [{t.title or t.url}]({t.url}) → {t.target_path}" for t in save] + [""]
+    if review:
+        lines += [f"## Zur Prüfung – bleiben offen ({len(review)})",
+                  "In Claude: „Räum meine Safari-Tabs auf“ ordnet diese mit dir zusammen ein.", ""] + \
+                 [f"- [{t.title or t.url}]({t.url})"
+                  + (f" — Vorschlag: {t.target_path}" if t.target_path else "") for t in review]
+        lines.append("")
+    if result.get("sicherung"):
+        lines += [f"Sicherung: {result['sicherung']} · Rückgängig: "
+                  "`python3 safari_tabs.py --rueckgaengig` oder in Claude „mach das rückgängig“."]
+    out.write_text("\n".join(lines), encoding="utf-8")
+    return out
+
+
+def run_auto(dry_run: bool = False, force: bool = False) -> int:
+    """Ein Automatik-Durchlauf (wird von launchd stündlich gestartet)."""
+    state = load_auto_state()
+    opts = state["einstellungen"]
+    stamp = f"[{_dt.datetime.now():%Y-%m-%d %H:%M}]"
+
+    if not state.get("berechtigt") and not dry_run:
+        # erster Lauf: Berechtigungen anfragen (macOS zeigt die Dialoge jetzt)
+        try:
+            read_safari_tabs() if safari_running() else None
+            root, _, _ = load_bookmarks_any()
+            cleanup_bridge_copies()
+        except (SystemExit, BridgeError) as e:
+            print(f"{stamp} Berechtigung fehlt: {e}")
+            notify("Safari-Tabs Automatik", f"Berechtigung fehlt: {e}")
+            return 1
+        if not root:
+            notify("Safari-Tabs Automatik", "Kein Zugriff auf die Lesezeichen.")
+            return 1
+        state["berechtigt"] = True
+        save_auto_state(state)
+        notify("Safari-Tabs Automatik", "Eingerichtet – läuft ab jetzt "
+               + ("wöchentlich." if opts["haeufigkeit"] == "woechentlich" else "täglich."))
+        print(f"{stamp} Berechtigungen ok")
+        if not force:
+            return 0
+
+    if not force and not auto_due(state):
+        return 0
+    if not safari_running():
+        print(f"{stamp} Safari läuft nicht – später erneut")
+        return 0
+    idle = user_idle_seconds()
+    if not force and idle < opts["inaktiv_minuten"] * 60:
+        print(f"{stamp} Mac wird gerade benutzt ({int(idle)} s inaktiv) – später erneut")
+        return 0
+
+    cfg = load_config(None)
+    try:
+        root, mode, cloud = load_bookmarks_any()
+        tabs, _, _ = read_all_tabs(include_cloud=True, cloud_db=cloud)
+    except (SystemExit, BridgeError) as e:
+        print(f"{stamp} Fehler: {e}")
+        notify("Safari-Tabs Automatik", f"Fehler: {e}")
+        return 1
+    finally:
+        cleanup_bridge_copies()
+    if not root:
+        notify("Safari-Tabs Automatik", "Kein Zugriff auf die Lesezeichen.")
+        return 1
+    folders = collect_folders(root)
+    plan = analyze(tabs, cfg, bookmark_index(root, cfg["tracking_params"]))
+    assign_folders(plan, folders, cfg)
+    close, save, review = plan_auto(plan, opts)
+    print(f"{stamp} {len(tabs)} Tabs: {len(close)} schließen, {len(save)} speichern, "
+          f"{len(review)} zur Prüfung")
+    if dry_run:
+        for t in close:
+            print(f"  ✖ {t.title or t.url}  ({t.reason})")
+        for t in save:
+            print(f"  ★ {t.title or t.url}  → {t.target_path}")
+        for t in review:
+            print(f"  ? {t.title or t.url}" + (f"  (Vorschlag {t.target_path})" if t.target_path else ""))
+        return 0
+
+    closed = 0
+    if close:
+        closed = close_tabs(close)["closed"]
+    result: Dict = {}
+    if save:
+        result = apply_bookmark_change({"add": [_tab_to_dict(t) for t in save],
+                                        "aktion": "Automatik: Lesezeichen gespeichert"})
+        if not result.get("ok"):
+            print(f"{stamp} Speichern fehlgeschlagen: {result.get('fehler')}")
+            notify("Safari-Tabs Automatik", f"Speichern fehlgeschlagen: {result.get('fehler')}")
+            save = []
+        elif opts.get("gespeicherte_schliessen"):
+            keys = {normalize_url(t.url) for t in save if not t.remote}
+            closed += close_tabs([c for c in read_safari_tabs()
+                                  if normalize_url(c.url) in keys])["closed"]
+    report = _auto_report(close, save, review, result)
+    state["letzter_lauf"] = _dt.datetime.now().isoformat(timespec="seconds")
+    state["letztes_ergebnis"] = {"geschlossen": closed, "gespeichert": len(save),
+                                 "zur_pruefung": len(review), "bericht": str(report)}
+    save_auto_state(state)
+    if opts.get("benachrichtigen") and (closed or save or review):
+        notify("Safari-Tabs aufgeräumt",
+               f"{closed} geschlossen · {len(save)} gespeichert · {len(review)} zur Prüfung")
+    print(f"{stamp} fertig: {closed} geschlossen, {len(save)} gespeichert – Bericht {report}")
+    return 0
+
+
+def install_automation(opts: Optional[Dict] = None) -> Dict:
+    """Richtet die Automatik ein (launchd, stündliche Prüfung, Arbeit je nach Häufigkeit)."""
+    require_macos()
+    state = load_auto_state()
+    state["einstellungen"].update({k: v for k, v in (opts or {}).items()
+                                   if k in AUTO_DEFAULTS and v is not None})
+    if state["einstellungen"]["haeufigkeit"] not in ("taeglich", "woechentlich"):
+        raise ValueError("haeufigkeit muss taeglich oder woechentlich sein")
+    state.pop("berechtigt", None)
+    save_auto_state(state)
+    # stabile Kopie des Programms, unabhängig von Updates/Ort der Erweiterung
+    script = BRIDGE_DIR / "safari_tabs.py"
+    shutil.copy2(Path(__file__).resolve(), script)
+    log = BRIDGE_DIR / "automatik.log"
+    plist = {
+        "Label": AUTO_LABEL,
+        "ProgramArguments": [sys.executable, str(script), "--auto"],
+        "StartInterval": 3600,
+        "RunAtLoad": False,
+        "ProcessType": "Background",
+        "StandardOutPath": str(log),
+        "StandardErrorPath": str(log),
+    }
+    path = _launch_plist()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as fh:
+        plistlib.dump(plist, fh)
+    domain = f"gui/{os.getuid()}"
+    subprocess.run(["launchctl", "bootout", f"{domain}/{AUTO_LABEL}"], capture_output=True)
+    r = subprocess.run(["launchctl", "bootstrap", domain, str(path)], capture_output=True, text=True)
+    if r.returncode != 0:
+        r = subprocess.run(["launchctl", "load", "-w", str(path)], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"launchctl: {r.stderr.strip()}")
+    # erster Lauf sofort: macOS fragt jetzt nach den Berechtigungen
+    subprocess.run(["launchctl", "kickstart", f"{domain}/{AUTO_LABEL}"], capture_output=True)
+    return {"eingerichtet": True, "einstellungen": state["einstellungen"],
+            "plist": str(path), "log": str(log)}
+
+
+def uninstall_automation() -> Dict:
+    path = _launch_plist()
+    if sys.platform == "darwin":
+        subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{AUTO_LABEL}"],
+                       capture_output=True)
+        subprocess.run(["launchctl", "unload", "-w", str(path)], capture_output=True)
+    existed = path.exists()
+    if existed:
+        path.unlink()
+    return {"entfernt": existed}
+
+
+def automation_status() -> Dict:
+    state = load_auto_state()
+    return {"aktiv": _launch_plist().exists(),
+            "berechtigt": state.get("berechtigt", False),
+            "einstellungen": state["einstellungen"],
+            "letzter_lauf": state.get("letzter_lauf"),
+            "letztes_ergebnis": state.get("letztes_ergebnis"),
+            "naechster_lauf": "sobald fällig und der Mac "
+                              f"{state['einstellungen']['inaktiv_minuten']} Min. nicht benutzt wird"}
+
+
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
@@ -2394,12 +2665,43 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="Sicherung zurückspielen (Name aus --sicherungen)")
     ap.add_argument("--sortieren", metavar="ORDNER",
                     help="Ordner sortieren (Unterordner alphabetisch zuerst, dann nach Website/Titel)")
+    ap.add_argument("--auto", action="store_true",
+                    help="Automatik-Durchlauf (normalerweise von launchd gestartet)")
+    ap.add_argument("--erzwingen", action="store_true",
+                    help="mit --auto: sofort ausführen, auch wenn nicht fällig/Mac benutzt")
+    ap.add_argument("--auto-installieren", action="store_true",
+                    help="Automatik einrichten (läuft im Hintergrund)")
+    ap.add_argument("--auto-entfernen", action="store_true", help="Automatik ausschalten")
+    ap.add_argument("--auto-status", action="store_true", help="Status der Automatik")
+    ap.add_argument("--haeufigkeit", choices=["taeglich", "woechentlich"],
+                    help="mit --auto-installieren")
+    ap.add_argument("--inaktiv-minuten", type=int, help="mit --auto-installieren")
+    ap.add_argument("--gespeicherte-schliessen", action="store_true",
+                    help="mit --auto-installieren: gespeicherte Tabs auch schließen")
     ap.add_argument("--bridge-op", help=argparse.SUPPRESS)
     ap.add_argument("--bridge-token", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
 
     if args.bridge_op:
         return bridge_main(args.bridge_op, args.bridge_token or "x")
+    if args.auto:
+        return run_auto(dry_run=args.overview, force=args.erzwingen)
+    if args.auto_installieren:
+        res = install_automation({"haeufigkeit": args.haeufigkeit,
+                                  "inaktiv_minuten": args.inaktiv_minuten,
+                                  "gespeicherte_schliessen": args.gespeicherte_schliessen or None})
+        e = res["einstellungen"]
+        print(f"✓ Automatik eingerichtet ({'wöchentlich' if e['haeufigkeit'] == 'woechentlich' else 'täglich'}, "
+              f"wenn der Mac {e['inaktiv_minuten']} Min. nicht benutzt wird).\n"
+              f"  Protokoll: {res['log']}\n  Bitte die macOS-Abfragen (Safari steuern) erlauben.")
+        return 0
+    if args.auto_entfernen:
+        print("✓ Automatik ausgeschaltet" if uninstall_automation()["entfernt"]
+              else "Automatik war nicht eingerichtet")
+        return 0
+    if args.auto_status:
+        print(json.dumps(automation_status(), ensure_ascii=False, indent=2))
+        return 0
     if args.rueckgaengig:
         require_macos()
         return run_undo_last()

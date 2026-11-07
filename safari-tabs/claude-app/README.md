@@ -81,6 +81,18 @@ Verletzt ein Vorschlag eine Regel, wird **nichts geändert**. Claude bessert den
 - **Sortiert:** Unterordner zuerst und alphabetisch (Sammelordner, die du schon hast, ganz unten), dann die Lesezeichen nach Website und Titel. „Sortier meinen Ordner Article“ geht auch einzeln.
 - **„Mach das rückgängig“** setzt den ganzen Ordner auf den Stand davor zurück. Hast du den Ordner inzwischen selbst geändert, fragt Claude vorher nach.
 
+## Automatisch aufräumen
+
+Schreib „Räum meine Tabs regelmäßig automatisch auf“ oder nimm den Befehl **automatik**. Claude fragt nach Häufigkeit (täglich/wöchentlich) und ob gespeicherte Tabs danach geschlossen werden sollen, und richtet einen Hintergrunddienst auf deinem Mac ein.
+
+- **Wann:** Der Dienst prüft stündlich. Er räumt aber nur auf, wenn er fällig ist **und** du den Mac seit mindestens 15 Minuten nicht benutzt. So wird Safari nie mitten in deiner Arbeit beendet.
+- **Was automatisch passiert:** Er schließt nur eindeutig überflüssige Tabs (Duplikate, leere Tabs, Suchergebnisse, Login- und Fehlerseiten, schon Gespeichertes) und speichert nur Tabs mit **sicherer** Zuordnung in **vorhandene** Ordner.
+- **Was nicht automatisch passiert:** Er legt keine neuen Ordner an und strukturiert nichts um. Alles Unsichere bleibt offen und steht im Bericht unter „Zur Prüfung“. Das sortierst du bei Gelegenheit mit Claude ein.
+- **Danach:** Du bekommst eine Mitteilung („8 geschlossen · 5 gespeichert · 3 zur Prüfung“) und einen Bericht in `~/.safari-tabs/berichte/`. Mit „mach das rückgängig“ nimmst du den letzten Lauf zurück.
+- **Status / Ausschalten:** „Wie steht's mit der Automatik?“ oder „Schalte die Automatik aus“.
+
+Beim Einrichten fragt macOS, ob **Python** Safari steuern darf: erlauben. Für den Zugriff auf die Lesezeichen gilt dasselbe wie sonst: Hat Python keinen Festplattenvollzugriff, öffnet sich kurz ein Terminal-Fenster.
+
 ## Fehler korrigieren
 
 Ist etwas im falschen Ordner gelandet, schreib z. B. „Die letzten Lesezeichen waren falsch, mach das rückgängig“ oder „Entferne ‚The AI Future Is for Everyone – WSJ‘ aus Article“ – oder nimm den Befehl **lesezeichen-korrigieren**. Claude kann jetzt:
