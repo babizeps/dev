@@ -377,6 +377,47 @@ class CorrectionTest(unittest.TestCase):
         self.assertEqual(f.key, "b")
         self.assertTrue(folder)
 
+    def test_smart_sort(self):
+        from make_sample_plist import folder, leaf
+        node = folder("X", [
+            leaf("https://b.example/2", "Zebra"), folder("Sonstiges", []),
+            leaf("https://a.example/1", "Teil 10"), folder("musik", []),
+            leaf("https://a.example/2", "Teil 2"), folder("Apps", []),
+        ])
+        st.smart_sort(node)
+        self.assertEqual([c.get("Title") or st._leaf_title(c) for c in node["Children"]],
+                         ["Apps", "musik", "Sonstiges", "Teil 2", "Teil 10", "Zebra"])
+
+    def test_restructure_moves_prunes_and_undo_guard(self):
+        from make_sample_plist import folder, leaf
+        root = self.root()
+        video = next(c for c in root["Children"][1]["Children"] if c["Title"] == "Video")
+        video["Children"].append(folder("Alt", [leaf("https://www.youtube.com/watch?v=jazz",
+                                                    "Jazz Live")]))
+        self.path.write_bytes(plistlib.dumps(root, fmt=plistlib.FMT_BINARY))
+        before = self.path.read_bytes()
+        hints = st.structure_hints(None, self.root(), "Lesezeichenmenü/Video")
+        self.assertEqual(hints["vorhandene_unterordner"], ["Alt"])
+        ids = {e["titel"]: e["id"] for e in hints["eintraege"]}
+        self.assertEqual(hints["eintraege"][1]["jetzt_in"], "Alt")
+        entry = st.edit_bookmarks({"restructure": [{
+            "ordner": "Lesezeichenmenü/Video",
+            "baum": [{"pfad": "Musik/Jazz", "ids": [ids["Jazz Live"]]},
+                     {"pfad": "Musik", "ids": [ids["Gutes Video"]],
+                      "neu": [{"title": "Neu", "url": "https://vimeo.com/1"}]}]}]}, self.path)
+        r = entry["umstrukturiert"][0]
+        self.assertEqual(r["leer_entfernt"], ["Lesezeichenmenü/Video/Alt"])
+        self.assertEqual(len(r["verschoben"]), 2)
+        tree = st.structure_hints(None, self.root(), "Lesezeichenmenü/Video")
+        self.assertEqual(tree["vorhandene_unterordner"], ["Musik", "Musik/Jazz"])
+        # Ordner danach von Hand geändert → Rückgängig verweigert, erzwingen geht
+        st.edit_bookmarks({"remove": [{"titel": "Neu", "ordner": "Musik"}]}, self.path)
+        undo = st.undo_change_for(entry)
+        with self.assertRaises(ValueError):
+            st.edit_bookmarks(undo, self.path)
+        st.edit_bookmarks(st.undo_change_for(entry, force=True), self.path)
+        self.assertEqual(self.root(), plistlib.loads(before))
+
     def test_restore_rejects_bad_names(self):
         for bad in ("../../etc/passwd", "Bookmarks.plist", "Bookmarks.plist.backup-x"):
             with self.assertRaises(ValueError):

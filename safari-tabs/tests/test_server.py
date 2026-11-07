@@ -109,7 +109,7 @@ class ServerSessionTest(unittest.TestCase):
         ])
         self.assertEqual([r["id"] for r in res], [1, 2, 3, 4, 5])
         self.assertEqual(res[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(res[1]["result"]["tools"]), 9)
+        self.assertEqual(len(res[1]["result"]["tools"]), 12)
         self.assertEqual([p["name"] for p in res[2]["result"]["prompts"]],
                          ["tabs-aufraeumen", "unterordner-erstellen", "lesezeichen-korrigieren"])
         self.assertIn("safari_tabs_ueberblick",
@@ -239,10 +239,11 @@ class ServerSessionTest(unittest.TestCase):
                         self.call(2, "safari_unterordner_vorschlagen")])
         hints = json.loads(res[1]["result"]["content"][0]["text"])["ordner"]
         video = next(h for h in hints if h["ordner"] == "Lesezeichenmenü/Video")
-        self.assertEqual(len(video["tabs"]), 4)
-        self.assertEqual(video["gemeinsame_seiten"]["youtube.com"], [1, 2, 3])
-        self.assertEqual(video["haeufige_woerter"]["lofi"], [1, 2])
-        self.assertEqual(video["haeufige_woerter"]["python"], [3, 4])
+        self.assertEqual(sorted(e["nr"] for e in video["eintraege"] if "nr" in e), [1, 2, 3, 4])
+        self.assertEqual([e["titel"] for e in video["eintraege"] if "id" in e], ["x"])
+        self.assertEqual(video["haeufige_seiten"]["youtube.com"], 4)
+        self.assertEqual(video["haeufige_woerter"]["lofi"], 2)
+        self.assertEqual(video["haeufige_woerter"]["python"], 2)
 
         res = self.rpc([
             self.call(3, "safari_lesezeichen_speichern", {"eintraege": [
@@ -269,6 +270,56 @@ class ServerSessionTest(unittest.TestCase):
                 if c.get("WebBookmarkType") == "WebBookmarkTypeList"]
         self.assertEqual(subs, ["Musik", "Programmieren"])
         self.assertEqual(sum(1 for c in menu if c["Title"] == "Video"), 1)
+
+    def test_apply_nested_structure_and_undo(self):
+        import plistlib, tempfile
+        tmp = tempfile.TemporaryDirectory()
+        base = Path(tmp.name)
+        saved = (st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.apply_bookmark_change)
+        try:
+            st.BRIDGE_DIR = base / "bridge"
+            st.BOOKMARKS_PLIST = base / "Bookmarks.plist"
+            st.BOOKMARKS_PLIST.write_bytes(plistlib.dumps(self.fake.root, fmt=plistlib.FMT_BINARY))
+            original = st.BOOKMARKS_PLIST.read_bytes()
+            st.apply_bookmark_change = lambda change, via_terminal=None: {
+                "ok": True, **st.edit_bookmarks(change, st.BOOKMARKS_PLIST)}
+            st.load_bookmarks_any = lambda allow_terminal=True: (
+                plistlib.loads(st.BOOKMARKS_PLIST.read_bytes()), "direkt", None)
+            self.fake.tabs = [st.Tab(1, i + 1, t, u) for i, (t, u) in enumerate([
+                ("Lofi beats - YouTube", "https://www.youtube.com/watch?v=1"),
+                ("Jazz lofi - YouTube", "https://www.youtube.com/watch?v=2"),
+                ("Python decorators", "https://www.youtube.com/watch?v=3")])]
+            res = self.rpc([self.call(1, "safari_tabs_ueberblick", {"andere_geraete": False}),
+                            self.call(2, "safari_unterordner_vorschlagen", {"ordner": "Video"})])
+            hint = json.loads(res[1]["result"]["content"][0]["text"])["ordner"][0]
+            old_id = next(e["id"] for e in hint["eintraege"] if "id" in e)
+            res = self.rpc([self.call(3, "safari_ordnerstruktur_anwenden", {
+                "ordner": "Video", "baum": [
+                    {"pfad": "Musik/Lofi", "tab_nummern": [1, 2]},
+                    {"pfad": "Programmieren", "tab_nummern": [3]},
+                    {"pfad": "Musik", "lesezeichen_ids": [old_id]}]})])
+            out = json.loads(res[0]["result"]["content"][0]["text"])
+            summ = out["umstrukturiert"][0]
+            self.assertEqual(summ["neue_unterordner"], ["Lesezeichenmenü/Video/Musik",
+                                                        "Lesezeichenmenü/Video/Musik/Lofi",
+                                                        "Lesezeichenmenü/Video/Programmieren"])
+            self.assertEqual(summ["verschoben"], 1)
+            self.assertEqual(summ["hinzugefuegt"], 3)
+            self.assertNotIn("vorher", json.dumps(out))
+            root = plistlib.loads(st.BOOKMARKS_PLIST.read_bytes())
+            video = next(c for c in root["Children"][1]["Children"] if c["Title"] == "Video")
+            self.assertEqual([c["Title"] for c in video["Children"]], ["Musik", "Programmieren"])
+            musik = video["Children"][0]
+            self.assertEqual([c.get("Title") or st._leaf_title(c) for c in musik["Children"]],
+                             ["Lofi", "x"])            # Unterordner zuerst, dann Lesezeichen
+            res = self.rpc([self.call(4, "safari_rueckgaengig")])
+            out = json.loads(res[0]["result"]["content"][0]["text"])
+            self.assertTrue(out["ok"])
+            restored = plistlib.loads(st.BOOKMARKS_PLIST.read_bytes())
+            self.assertEqual(restored, plistlib.loads(original))
+        finally:
+            st.BRIDGE_DIR, st.BOOKMARKS_PLIST, st.apply_bookmark_change = saved
+            tmp.cleanup()
 
     def test_unknown_method(self):
         res = self.rpc([{"jsonrpc": "2.0", "id": 9, "method": "foo/bar"}])

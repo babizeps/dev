@@ -29,7 +29,7 @@ for p in (HERE, HERE.parent):            # im Bundle: gleicher Ordner, im Repo: 
 import safari_tabs as st  # noqa: E402
 
 SERVER_NAME = "safari-tabs"
-SERVER_VERSION = "1.5.0"
+SERVER_VERSION = "1.6.0"
 OUT = sys.stdout                       # nur hier dürfen JSON-RPC-Nachrichten hin
 
 # Zustand der letzten Analyse (Tab-Nummern beziehen sich darauf)
@@ -300,7 +300,50 @@ def _finish(res: Dict, extra: Optional[Dict] = None) -> Dict:
         return {"ok": False, "fehler": res.get("fehler"), "zugriff": st.access_diagnosis()}
     out = {k: v for k, v in res.items() if k in (
         "ok", "aktion", "sicherung", "entfernt", "wiederhergestellt", "ergebnis")}
+    if res.get("umstrukturiert"):
+        out["umstrukturiert"] = [_summarize(r) for r in res["umstrukturiert"]]
     out.update(extra or {})
+    return out
+
+
+def _summarize(r: Dict) -> Dict:
+    """Ergebnis einer Umstrukturierung ohne den (großen) Schnappschuss."""
+    counts: Dict[str, int] = {}
+    for m in r.get("verschoben", []):
+        counts[m["nach"]] = counts.get(m["nach"], 0) + 1
+    for a in r.get("hinzugefuegt", []):
+        counts[a["ordner"]] = counts.get(a["ordner"], 0) + 1
+    out = {"ordner": r.get("ordner"),
+           "neue_unterordner": [o["titel"] for o in r.get("ordner_neu", [])],
+           "verschoben": len(r.get("verschoben", [])),
+           "hinzugefuegt": len(r.get("hinzugefuegt", [])),
+           "pro_unterordner": dict(sorted(counts.items())),
+           "leere_entfernt": r.get("leer_entfernt", [])}
+    if r.get("nicht_gefunden"):
+        out["nicht_gefunden"] = r["nicht_gefunden"]
+    return {k: v for k, v in out.items() if v not in ([], {}, None) or k == "ordner"}
+
+
+def _apply(change: Dict, extra_note: Optional[str] = None) -> Dict:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        res = st.apply_bookmark_change(change)
+    out = _finish(res, {"protokoll": buf.getvalue().strip()})
+    if res.get("ok") and extra_note:
+        out["hinweis"] = extra_note
+    return out
+
+
+def tool_undo(args: Dict) -> Dict:
+    entry = st.last_undoable()
+    if not entry:
+        raise ValueError("Im Verlauf gibt es nichts, was sich rückgängig machen lässt. Einzelne "
+                         "Lesezeichen lassen sich mit safari_lesezeichen_entfernen löschen.")
+    change = st.undo_change_for(entry, force=bool(args.get("erzwingen")))
+    out = _apply(change, ICLOUD_NOTE)
+    if out.get("ok"):
+        st.mark_undone(entry)
+        out["rueckgaengig_gemacht"] = {"aktion": entry.get("aktion"), "zeit": entry.get("zeit")}
     return out
 
 
@@ -312,10 +355,12 @@ def tool_remove(args: Dict) -> Dict:
     entry = None
     change: Dict = {"remove": items, "aktion": "Lesezeichen entfernt"}
     if args.get("letzte_speicherung_rueckgaengig"):
+        if not items:
+            return tool_undo({})
         entry = st.last_undoable()
-        if not entry:
-            raise ValueError("Im Verlauf gibt es keine Speicherung, die sich rückgängig machen "
-                             "lässt. Einträge stattdessen per url oder titel+ordner angeben.")
+        if not entry or entry.get("umstrukturiert"):
+            raise ValueError("Die letzte Änderung war keine einfache Speicherung – bitte "
+                             "safari_rueckgaengig verwenden.")
         undo = st.undo_change_for(entry)
         change = {"remove": undo["remove"] + items,
                   "remove_folder_ids": undo["remove_folder_ids"], "aktion": undo["aktion"]}
@@ -350,34 +395,154 @@ def tool_restore(args: Dict) -> Dict:
     return out
 
 
+def _root_for_structure() -> Dict:
+    root = STATE.get("root")
+    return root if root else _read_root()
+
+
 def tool_subfolders(args: Dict) -> Dict:
-    plan = _require_plan()
-    hints = st.subfolder_hints(plan, STATE["folders"], STATE.get("root"),
-                               min_tabs=int(args.get("mindestens_tabs", 3)))
+    """Daten für eine verschachtelte Ordnerstruktur (ein Ordner oder alle Ziel-Ordner)."""
+    root = _root_for_structure()
+    plan = STATE.get("plan")
+    folders = STATE.get("folders") or st.collect_folders(root)
+    include = args.get("vorhandene_einbeziehen", True) is not False
+    if args.get("ordner"):
+        f = st.find_folder(args["ordner"], folders)
+        if not f:
+            raise ValueError(f"Ordner „{args['ordner']}“ nicht gefunden.")
+        paths = [f.path]
+    else:
+        if not plan:
+            raise ValueError("Ordner angeben oder vorher safari_tabs_ueberblick aufrufen.")
+        counts: Dict[str, int] = {}
+        for t in plan.by_action(st.BOOKMARK):
+            top = next((f.path for f in folders if f.depth <= 1 and (
+                t.target_path == f.path or t.target_path.startswith(f.path + "/"))
+                and f.title not in st.SPECIAL_TITLES.values()), None)
+            if top:
+                counts[top] = counts.get(top, 0) + 1
+        paths = [p for p, n in sorted(counts.items(), key=lambda x: -x[1])
+                 if n >= int(args.get("mindestens_tabs", 3))]
     return {
-        "ordner": hints,
+        "ordner": [st.structure_hints(plan, root, p, include) for p in paths],
         "anleitung": (
-            "Schlage pro Ordner 2–6 Unterordner mit kurzen Namen vor (Sprache wie die "
-            "vorhandenen Ordner), je mindestens 2 Tabs; nutze vorhandene Unterordner, wenn "
-            "sie passen. Tabs, die nirgends passen, bleiben direkt im Ordner. Zeige den "
-            "Vorschlag als Baum, warte auf OK und speichere dann mit "
-            "safari_lesezeichen_speichern, ordner = „<Ordner>/<Unterordner>“, "
-            "neue_ordner_erlaubt=true."),
+            "Entwirf je Ordner eine verschachtelte Struktur (höchstens 3 Ebenen, z. B. "
+            "Musik/Lofi): erst grobe Themen, darunter nur feinere Unterteilungen, wenn ein "
+            "Thema mindestens ~6 Einträge hat; jeder Unterordner mindestens 2 Einträge; kurze "
+            "Namen in der Sprache der vorhandenen Ordner; vorhandene Unterordner "
+            "wiederverwenden oder sinnvoll umbenennen; Einzelstücke bleiben direkt im Ordner "
+            "(pfad \"\"). Neue Tabs (nr) und vorhandene Lesezeichen (id) gemeinsam einordnen. "
+            "Zeige den Baum mit Anzahl und Beispieltiteln, warte auf OK, dann "
+            "safari_ordnerstruktur_anwenden."),
     }
+
+
+def tool_apply_structure(args: Dict) -> Dict:
+    root = _root_for_structure()
+    folders = STATE.get("folders") or st.collect_folders(root)
+    f = st.find_folder(args.get("ordner", ""), folders)
+    if not f:
+        raise ValueError(f"Ordner „{args.get('ordner')}“ nicht gefunden.")
+    plan = STATE.get("plan")
+    by_num = {t.num: t for t in plan.tabs} if plan else {}
+    tree, problems = [], []
+    for node in args.get("baum", []):
+        rel = (node.get("pfad") or "").strip().strip("/")
+        if len([p for p in rel.split("/") if p]) > 4:
+            problems.append(f"„{rel}“ ist tiefer als 4 Ebenen – übersprungen")
+            continue
+        new_tabs = []
+        for n in node.get("tab_nummern", []):
+            t = by_num.get(int(n))
+            if not t:
+                problems.append(f"Tab {n} unbekannt (vorher safari_tabs_ueberblick aufrufen)")
+                continue
+            new_tabs.append(st._tab_to_dict(t))
+        tree.append({"pfad": rel, "ids": list(node.get("lesezeichen_ids", [])),
+                     "neu": new_tabs})
+    if not tree:
+        raise ValueError("Leere Struktur. " + " ".join(problems))
+    spec = {"ordner": f.path, "baum": tree,
+            "sortieren": args.get("sortieren", True) is not False,
+            "leere_entfernen": args.get("leere_entfernen", True) is not False}
+    out = _apply({"restructure": [spec], "aktion": f"Ordnerstruktur in „{f.path}“"},
+                 "Mit safari_rueckgaengig lässt sich die ganze Umstrukturierung zurücknehmen. "
+                 + ICLOUD_NOTE.replace("gelöschte Einträge", "verschobene Einträge"))
+    if problems:
+        out["probleme"] = problems
+    STATE["root"] = None
+    return out
+
+
+def tool_sort(args: Dict) -> Dict:
+    root = _root_for_structure()
+    f = st.find_folder(args.get("ordner", ""), STATE.get("folders") or st.collect_folders(root))
+    if not f:
+        raise ValueError(f"Ordner „{args.get('ordner')}“ nicht gefunden.")
+    out = _apply({"sort": [f.path]})
+    STATE["root"] = None
+    return out
 
 
 TOOLS = {
     "safari_unterordner_vorschlagen": {
         "fn": tool_subfolders,
         "description": (
-            "Liefert für jeden Ziel-Ordner mit mehreren Tabs die Tabs samt gemeinsamen Websites "
-            "und häufigen Stichwörtern sowie vorhandene Unterordner – als Grundlage, um "
-            "passende Unterordner vorzuschlagen (z. B. Video/Musik, Article/KI). Benötigt "
-            "vorher safari_tabs_ueberblick. Ändert nichts."),
+            "Liefert für einen Ordner (oder alle Ziel-Ordner der aktuellen Tabs) alle Einträge "
+            "– neue Tabs (nr) und vorhandene Lesezeichen (id, jetziger Unterordner) – samt "
+            "vorhandener Unterordner, häufiger Websites und Stichwörter. Grundlage, um eine "
+            "verschachtelte, smarte Unterordner-Struktur zu entwerfen. Ändert nichts."),
         "inputSchema": {"type": "object", "properties": {
+            "ordner": {"type": "string", "description": "z. B. „Video“ – leer = alle Ziel-Ordner der Tabs"},
+            "vorhandene_einbeziehen": {"type": "boolean",
+                                       "description": "vorhandene Lesezeichen mit einordnen (Standard true)"},
             "mindestens_tabs": {"type": "integer",
-                                "description": "nur Ordner mit mindestens so vielen Tabs (Standard 3)"}}},
+                                "description": "ohne ordner: nur Ordner mit so vielen Tabs (Standard 3)"}}},
         "annotations": {"title": "Unterordner vorschlagen", "readOnlyHint": True},
+    },
+    "safari_ordnerstruktur_anwenden": {
+        "fn": tool_apply_structure,
+        "description": (
+            "Legt in einem vorhandenen Ordner eine verschachtelte Unterordner-Struktur an, "
+            "verschiebt vorhandene Lesezeichen (ids aus safari_unterordner_vorschlagen) und "
+            "trägt Tabs (nummern aus safari_tabs_ueberblick) ein, entfernt dadurch leer "
+            "gewordene Unterordner und sortiert alles smart (Unterordner zuerst, alphabetisch, "
+            "„Sonstiges“ zuletzt; Lesezeichen nach Website und Titel). Safari wird kurz "
+            "beendet, vorher gesichert, komplett rückgängig machbar. Nur nach ausdrücklicher "
+            "Bestätigung des Nutzers aufrufen."),
+        "inputSchema": {"type": "object", "properties": {
+            "ordner": {"type": "string", "description": "vorhandener Ordner, z. B. „Video“"},
+            "baum": {"type": "array", "description": "eine Zeile pro Ziel-Unterordner", "items": {
+                "type": "object", "properties": {
+                    "pfad": {"type": "string",
+                             "description": "relativ zum Ordner, z. B. „Musik/Lofi“; \"\" = direkt im Ordner"},
+                    "lesezeichen_ids": {"type": "array", "items": {"type": "string"}},
+                    "tab_nummern": {"type": "array", "items": {"type": "integer"}}},
+                "required": ["pfad"]}},
+            "sortieren": {"type": "boolean", "description": "smart sortieren (Standard true)"},
+            "leere_entfernen": {"type": "boolean",
+                                "description": "durch Verschieben leer gewordene Unterordner entfernen (Standard true)"}},
+            "required": ["ordner", "baum"]},
+        "annotations": {"title": "Ordnerstruktur anwenden", "destructiveHint": True},
+    },
+    "safari_ordner_sortieren": {
+        "fn": tool_sort,
+        "description": (
+            "Sortiert einen Lesezeichen-Ordner samt Unterordnern smart: Unterordner zuerst "
+            "(alphabetisch, „Sonstiges“ zuletzt), dann Lesezeichen nach Website und Titel. "
+            "Rückgängig machbar. Nur nach Bestätigung."),
+        "inputSchema": {"type": "object", "properties": {"ordner": {"type": "string"}},
+                        "required": ["ordner"]},
+        "annotations": {"title": "Ordner sortieren", "destructiveHint": False},
+    },
+    "safari_rueckgaengig": {
+        "fn": tool_undo,
+        "description": (
+            "Macht die letzte Änderung dieses Tools rückgängig – Speicherung, Ordnerstruktur "
+            "oder Sortierung. Wurde ein umstrukturierter Ordner danach verändert, wird "
+            "abgebrochen (mit erzwingen=true trotzdem). Nur nach Bestätigung."),
+        "inputSchema": {"type": "object", "properties": {"erzwingen": {"type": "boolean"}}},
+        "annotations": {"title": "Rückgängig", "destructiveHint": True},
     },
     "safari_lesezeichen_suchen": {
         "fn": tool_search,
@@ -530,9 +695,9 @@ PROMPT_TEXT = """Hilf mir, meine Safari-Tabs aufzuräumen. Gehe so vor und antwo
 
 Schließe oder speichere nie etwas ohne meine ausdrückliche Bestätigung. Zugriff: Hat die Erweiterung selbst keinen Festplattenvollzugriff, liest und schreibt sie die Lesezeichen über ein kurz geöffnetes Terminal-Fenster (`zugriff_ueber`: Terminal). Sag mir dann kurz, dass ich das Fenster schließen kann. Ist `lesezeichen_zugriff` trotzdem false, erkläre mir genau den `hinweis` (meist: Festplattenvollzugriff für **Terminal** einschalten) und rufe danach auf mein „weiter“ hin `safari_tabs_ueberblick` erneut auf.
 
-Unterordner: Passen in einen Ordner viele Tabs zu verschiedenen Themen, biete an, mit `safari_unterordner_vorschlagen` passende Unterordner vorzuschlagen (Ordnerangabe dann „Video/Musik“, nur mit meinem OK und `neue_ordner_erlaubt: true`).
+Unterordner: Passen in einen Ordner viele Tabs zu verschiedenen Themen, biete an, mit `safari_unterordner_vorschlagen` eine verschachtelte Struktur (höchstens 3 Ebenen) für Tabs und vorhandene Lesezeichen zu entwerfen; zeig sie als Baum und wende sie nach meinem OK mit `safari_ordnerstruktur_anwenden` an.
 
-Korrekturen: Ist etwas falsch eingetragen, nutze `safari_lesezeichen_verlauf` bzw. `safari_lesezeichen_suchen`, zeig mir genau, was entfernt würde, und entferne es nach meinem OK mit `safari_lesezeichen_entfernen` (für die ganze letzte Speicherung: `letzte_speicherung_rueckgaengig`). Danach trägst du – wieder nach OK – die richtigen Einträge mit `safari_lesezeichen_speichern` ein (dafür vorher `safari_tabs_ueberblick` aufrufen). Eine Sicherung zurückspielen (`safari_sicherung_zurueckspielen`) nur, wenn gezieltes Entfernen nicht reicht. Prüfe nach dem Entfernen nach etwa einer Minute mit `safari_lesezeichen_suchen`, ob iCloud die Einträge zurückgebracht hat."""
+Korrekturen: Ist etwas falsch eingetragen, nutze `safari_lesezeichen_verlauf` bzw. `safari_lesezeichen_suchen`, zeig mir genau, was entfernt würde, und entferne es nach meinem OK mit `safari_lesezeichen_entfernen` (für die ganze letzte Änderung – auch Umstrukturierungen und Sortierungen: `safari_rueckgaengig`). Danach trägst du – wieder nach OK – die richtigen Einträge mit `safari_lesezeichen_speichern` ein (dafür vorher `safari_tabs_ueberblick` aufrufen). Eine Sicherung zurückspielen (`safari_sicherung_zurueckspielen`) nur, wenn gezieltes Entfernen nicht reicht. Prüfe nach dem Entfernen nach etwa einer Minute mit `safari_lesezeichen_suchen`, ob iCloud die Einträge zurückgebracht hat."""
 
 PROMPTS = {
     "tabs-aufraeumen": {
@@ -540,20 +705,25 @@ PROMPTS = {
         "text": PROMPT_TEXT,
     },
     "unterordner-erstellen": {
-        "description": "Passende Unterordner für die Tabs vorschlagen und anlegen",
+        "description": "Verschachtelte, smart geordnete Unterordner für Tabs und Lesezeichen",
         "text": (
-            "Hilf mir, meine Safari-Tabs in passende Unterordner meiner vorhandenen "
-            "Lesezeichen-Ordner einzusortieren. Antworte auf Deutsch.\n"
-            "1. Rufe `safari_tabs_ueberblick` und danach `safari_unterordner_vorschlagen` auf.\n"
-            "2. Schlage pro Ordner 2–6 Unterordner vor (kurze Namen in der Sprache meiner "
-            "Ordner, je mindestens 2 Tabs, vorhandene Unterordner wiederverwenden). Zeig den "
-            "Vorschlag als Baum, z. B. „Video → Musik (5), Doku (3)“, mit den Tab-Titeln.\n"
-            "3. Ich kann Namen ändern, Unterordner zusammenlegen oder Tabs verschieben.\n"
-            "4. Erst nach meinem OK: `safari_lesezeichen_speichern` mit ordner "
-            "„<Ordner>/<Unterordner>“ und `neue_ordner_erlaubt: true`. Sag vorher, dass Safari "
-            "kurz beendet wird.\n"
-            "5. Erwähne, dass ich alles mit „mach das rückgängig“ wieder entfernen kann "
-            "(die neuen Unterordner verschwinden dann mit)."),
+            "Hilf mir, meine Lesezeichen-Ordner mit verschachtelten, smart geordneten "
+            "Unterordnern zu strukturieren – für meine offenen Tabs und die Lesezeichen, die "
+            "schon in den Ordnern liegen. Antworte auf Deutsch.\n"
+            "1. Rufe `safari_tabs_ueberblick` und dann `safari_unterordner_vorschlagen` auf "
+            "(ohne ordner = alle Ziel-Ordner; einzelne Ordner wie „Video“ gehen auch).\n"
+            "2. Entwirf pro Ordner eine Struktur mit höchstens 3 Ebenen: oben grobe Themen, "
+            "darunter feinere Unterteilungen nur bei genug Einträgen (ab ~6), jeder Unterordner "
+            "mit mindestens 2 Einträgen, kurze Namen in der Sprache meiner Ordner, vorhandene "
+            "Unterordner wiederverwenden. Einzelstücke bleiben direkt im Ordner.\n"
+            "3. Zeig mir den Baum eingerückt mit Anzahl und 2–3 Beispieltiteln, z. B.\n"
+            "   Video\n   ├─ Musik (12)\n   │  ├─ Lofi (5)\n   │  └─ Jazz (4)\n"
+            "   └─ Programmieren (7)\n"
+            "   und sag dazu, wie viele vorhandene Lesezeichen verschoben würden.\n"
+            "4. Ich kann umbenennen, zusammenlegen, Ebenen streichen oder Einträge verschieben.\n"
+            "5. Erst nach meinem OK: `safari_ordnerstruktur_anwenden` pro Ordner (Safari wird "
+            "kurz beendet). Danach ist alles smart sortiert.\n"
+            "6. Erwähne, dass „mach das rückgängig“ (`safari_rueckgaengig`) alles zurücknimmt."),
     },
     "lesezeichen-korrigieren": {
         "description": "Falsch eingetragene Lesezeichen finden und entfernen",

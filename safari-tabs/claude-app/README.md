@@ -54,16 +54,24 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json` eintragen (
 }
 ```
 
-## Unterordner
+## Unterordner – verschachtelt und smart sortiert
 
-Landen viele Tabs im selben Ordner, kann Claude passende **Unterordner** vorschlagen, zum Beispiel:
+Schreib „Mach passende Unterordner für meine Tabs“ oder „Räum meinen Ordner Video auf“, oder nimm den Befehl **unterordner-erstellen**. Claude entwirft für jeden Ordner eine Struktur mit bis zu drei Ebenen, für die neuen Tabs **und** die Lesezeichen, die schon im Ordner liegen:
 
 ```
-Video  → Musik (5) · Programmieren (3) · Dokus (2)
-Article → KI (6) · Datenschutz (3)
+Video
+├─ Musik (12)
+│  ├─ Lofi (5)
+│  └─ Jazz (4)
+├─ Programmieren (7)
+└─ Sonstiges (2)
 ```
 
-Schreib „Mach passende Unterordner für meine Tabs“ oder nimm den Befehl **unterordner-erstellen**. Claude gruppiert die Tabs je Ordner nach gemeinsamen Websites und Stichwörtern, nutzt vorhandene Unterordner wieder und zeigt dir den Vorschlag als Baum. Namen änderst oder Gruppen verschiebst du einfach im Chat. Angelegt wird erst nach deinem OK. Die Unterordner entstehen **in deinen vorhandenen Ordnern**, nicht daneben. Mit „mach das rückgängig“ verschwinden die Lesezeichen und die neu angelegten Unterordner wieder.
+- Feinere Unterordner gibt es nur bei genug Einträgen, jeder Unterordner hat mindestens 2. Vorhandene Unterordner werden wiederverwendet.
+- Du kannst den Vorschlag im Chat ändern (umbenennen, zusammenlegen, Ebenen streichen). Angewendet wird erst nach deinem OK.
+- Unterordner, die durch das Umsortieren leer werden, verschwinden. Leere Ordner, die du selbst angelegt hast, bleiben.
+- **Smart sortiert:** Unterordner zuerst und alphabetisch, „Sonstiges“ und Ähnliches ganz unten, dann die Lesezeichen nach Website und Titel. „Sortier meinen Ordner Article“ geht auch einzeln.
+- **„Mach das rückgängig“** setzt den ganzen Ordner auf den Stand davor zurück. Hast du den Ordner inzwischen selbst geändert, fragt Claude vorher nach.
 
 ## Fehler korrigieren
 

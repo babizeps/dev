@@ -13,6 +13,8 @@ Nur Python-Standardbibliothek, läuft mit dem macOS-eigenen python3 (>= 3.8).
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import copy
 import datetime as _dt
 import html
@@ -1060,6 +1062,54 @@ def subfolder_hints(plan: Plan, folders: List[Folder], root: Optional[Dict],
     return out
 
 
+def structure_hints(plan: Optional[Plan], root: Dict, folder_path: str,
+                    include_existing: bool = True, max_items: int = 400) -> Dict:
+    """Alles, was Claude braucht, um für einen Ordner eine verschachtelte Struktur zu
+    entwerfen: neue Tabs (nr), vorhandene Lesezeichen (id, aktueller Unterordner),
+    vorhandene Unterordner-Struktur, gemeinsame Websites und Stichwörter."""
+    idx = _index_nodes(root)
+    base = idx.get(folder_path)
+    if base is None:
+        raise FileNotFoundError(f"Ordner „{folder_path}“ nicht gefunden")
+    items: List[Dict] = []
+    tree: List[str] = []
+
+    def walk(n: Dict, rel: str) -> None:
+        for c in n.get("Children", []) or []:
+            if c.get("WebBookmarkType") == "WebBookmarkTypeLeaf" and include_existing:
+                items.append({"id": c.get("WebBookmarkUUID"), "titel": _leaf_title(c)[:90],
+                              "seite": _bare_host(urlsplit(c.get("URLString", "")).hostname or ""),
+                              "jetzt_in": rel or "."})
+            elif c.get("WebBookmarkType") == "WebBookmarkTypeList":
+                sub = f"{rel}/{_node_title(c)}" if rel else _node_title(c)
+                tree.append(sub)
+                walk(c, sub)
+    walk(base, "")
+    if plan:
+        for t in plan.by_action(BOOKMARK):
+            if t.target_path == folder_path or t.target_path.startswith(folder_path + "/"):
+                items.append({"nr": t.num, "titel": (t.title or "")[:90],
+                              "seite": _bare_host(t.host), "neu": True})
+    sites: Dict[str, int] = {}
+    words: Dict[str, int] = {}
+    for it in items:
+        sites[it["seite"]] = sites.get(it["seite"], 0) + 1
+        for w in _title_words(it["titel"]) - _tokens(it["seite"]):
+            words[w] = words.get(w, 0) + 1
+    truncated = len(items) > max_items
+    return {
+        "ordner": folder_path,
+        "vorhandene_unterordner": tree,
+        "anzahl": len(items),
+        "eintraege": items[:max_items],
+        "gekuerzt": truncated,
+        "haeufige_seiten": dict(sorted(((k, v) for k, v in sites.items() if v >= 2),
+                                       key=lambda x: -x[1])[:25]),
+        "haeufige_woerter": dict(sorted(((k, v) for k, v in words.items() if v >= 2),
+                                        key=lambda x: -x[1])[:40]),
+    }
+
+
 def set_new_target(t: Tab, name: str, why: str = "") -> None:
     t.target_key = "new:" + name
     t.target_path = name
@@ -1527,6 +1577,172 @@ def list_backups(path: Path = None) -> List[Dict]:
     return sorted(out, key=lambda d: d["name"].rsplit("-", 2)[-2:], reverse=True)
 
 
+# --------------------------------------------------------------------------
+# Ordnerstruktur: verschachtelte Unterordner, Verschieben, smarte Sortierung
+# --------------------------------------------------------------------------
+LAST_FOLDER_NAMES = {"sonstiges", "sonstige", "diverses", "andere", "anderes", "misc",
+                     "other", "others", "unsortiert", "allgemein", "general", "rest",
+                     "mehr", "more"}
+
+
+def _natural_key(text: str) -> List:
+    return [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", (text or "").casefold())]
+
+
+def smart_sort(node: Dict, recursive: bool = True) -> None:
+    """Unterordner zuerst (alphabetisch, „Sonstiges“ & Co. zuletzt), dann Lesezeichen
+    nach Website und Titel. Leselisten und Sonderelemente bleiben unberührt."""
+    kids = node.get("Children", []) or []
+    folders = [c for c in kids if c.get("WebBookmarkType") == "WebBookmarkTypeList"]
+    leaves = [c for c in kids if c.get("WebBookmarkType") == "WebBookmarkTypeLeaf"]
+    other = [c for c in kids if c not in folders and c not in leaves]
+    folders.sort(key=lambda c: (_node_title(c).strip().casefold() in LAST_FOLDER_NAMES,
+                                _natural_key(_node_title(c))))
+    leaves.sort(key=lambda c: (_domain(urlsplit(c.get("URLString", "")).hostname or ""),
+                               _natural_key(_leaf_title(c))))
+    node["Children"] = folders + leaves + other
+    if recursive:
+        for f in folders:
+            if f.get("Title") not in SKIP_TITLES:
+                smart_sort(f, True)
+
+
+def _structure_hash(node: Dict) -> str:
+    """Fingerabdruck von Aufbau und Inhalt (ohne Sync-Metadaten von iCloud)."""
+    def walk(n: Dict):
+        return [n.get("WebBookmarkType"), n.get("Title"), n.get("URLString"),
+                n.get("WebBookmarkUUID"), [walk(c) for c in n.get("Children", []) or []]]
+    return hashlib.sha256(json.dumps(walk(node), ensure_ascii=False).encode()).hexdigest()
+
+
+def _find_by_uuid(root: Dict, uid: str) -> Optional[Dict]:
+    if root.get("WebBookmarkUUID") == uid:
+        return root
+    for c in root.get("Children", []) or []:
+        hit = _find_by_uuid(c, uid)
+        if hit is not None:
+            return hit
+    return None
+
+
+def _ensure_subfolder(parent: Dict, rel_path: str, created: List[Dict], base_path: str) -> Dict:
+    node, path = parent, base_path
+    for part in [p.strip() for p in rel_path.split("/") if p.strip()]:
+        path = f"{path}/{part}"
+        sub = next((c for c in node.get("Children", []) or []
+                    if c.get("WebBookmarkType") == "WebBookmarkTypeList"
+                    and _node_title(c).strip().casefold() == part.casefold()), None)
+        if sub is None:
+            sub = _new_folder(part)
+            node.setdefault("Children", []).append(sub)
+            created.append({"id": sub["WebBookmarkUUID"], "titel": path})
+        node = sub
+    return node
+
+
+def restructure_folder(root: Dict, spec: Dict, cfg: Dict) -> Dict:
+    """Baut in einem vorhandenen Ordner eine (verschachtelte) Unterordner-Struktur.
+
+    spec = {"ordner": "Lesezeichenmenü/Video",
+            "baum": [{"pfad": "Musik/Lofi", "ids": [Lesezeichen-UUIDs zum Verschieben],
+                      "neu": [Tab-Dicts zum Hinzufügen]}],
+            "sortieren": True, "leere_entfernen": True}
+    Verschoben werden nur Lesezeichen, die schon in diesem Ordner (inkl. Unterordnern)
+    liegen. Gibt Protokoll inkl. Schnappschuss für „rückgängig“ zurück.
+    """
+    tracking = cfg["tracking_params"]
+    idx = _index_nodes(root)
+    base = idx.get(spec["ordner"])
+    if base is None:
+        raise FileNotFoundError(f"Ordner „{spec['ordner']}“ nicht gefunden")
+    before = base64.b64encode(plistlib.dumps(base, fmt=plistlib.FMT_BINARY)).decode()
+    base_path = next(p for p, n in idx.items() if n is base and not re.fullmatch(
+        r"[0-9A-F-]{36}", p))
+
+    # alle Lesezeichen im Ordner-Teilbaum: uuid → (Elternordner, Lesezeichen)
+    inside: Dict[str, Tuple[Dict, Dict]] = {}
+    nonempty_before = set()
+
+    def walk(n: Dict) -> None:
+        for c in n.get("Children", []) or []:
+            if c.get("WebBookmarkType") == "WebBookmarkTypeLeaf" and c.get("WebBookmarkUUID"):
+                inside[c["WebBookmarkUUID"]] = (n, c)
+            elif c.get("WebBookmarkType") == "WebBookmarkTypeList":
+                if c.get("Children"):
+                    nonempty_before.add(id(c))
+                walk(c)
+    walk(base)
+    existing_urls = {normalize_url(u, tracking) for u in iter_bookmark_urls(root)}
+
+    created: List[Dict] = []
+    moved: List[Dict] = []
+    added: List[Dict] = []
+    missing: List[str] = []
+    for item in spec.get("baum", []):
+        rel = (item.get("pfad") or "").strip().strip("/")
+        target = _ensure_subfolder(base, rel, created, base_path) if rel else base
+        tpath = f"{base_path}/{rel}" if rel else base_path
+        for uid in item.get("ids", []):
+            hit = inside.get(uid)
+            if not hit:
+                missing.append(uid)
+                continue
+            parent, leaf = hit
+            if parent is target:
+                continue
+            parent["Children"] = [c for c in parent.get("Children", []) if c is not leaf]
+            target.setdefault("Children", []).append(leaf)
+            inside[uid] = (target, leaf)
+            moved.append({"id": uid, "titel": _leaf_title(leaf), "nach": tpath})
+        for d in item.get("neu", []):
+            url = clean_url(d["url"], tracking)
+            key = normalize_url(url, tracking)
+            if key in existing_urls:
+                continue
+            leaf = _new_leaf(d.get("title", ""), url)
+            target.setdefault("Children", []).append(leaf)
+            existing_urls.add(key)
+            added.append({"id": leaf["WebBookmarkUUID"], "titel": d.get("title", ""),
+                          "url": url, "ordner": tpath})
+
+    removed_empty: List[str] = []
+    if spec.get("leere_entfernen", True):
+        def prune(n: Dict, path: str) -> None:
+            for c in list(n.get("Children", []) or []):
+                if c.get("WebBookmarkType") == "WebBookmarkTypeList":
+                    prune(c, f"{path}/{_node_title(c)}")
+            keep = []
+            for c in n.get("Children", []) or []:
+                if (c.get("WebBookmarkType") == "WebBookmarkTypeList" and not c.get("Children")
+                        and id(c) in nonempty_before):
+                    removed_empty.append(f"{path}/{_node_title(c)}")
+                    continue
+                keep.append(c)
+            n["Children"] = keep
+        prune(base, base_path)
+    if spec.get("sortieren", True):
+        smart_sort(base)
+    return {"ordner": base_path, "ordner_id": base.get("WebBookmarkUUID"),
+            "ordner_neu": created, "verschoben": moved, "hinzugefuegt": added,
+            "leer_entfernt": removed_empty, "nicht_gefunden": missing,
+            "vorher": before, "nachher_hash": _structure_hash(base)}
+
+
+def restore_folder_snapshot(root: Dict, snap: Dict, force: bool = False) -> str:
+    node = _find_by_uuid(root, snap["ordner_id"]) if snap.get("ordner_id") else None
+    if node is None:
+        node = _index_nodes(root).get(snap.get("ordner", ""))
+    if node is None:
+        raise FileNotFoundError("Ordner der Umstrukturierung nicht mehr gefunden")
+    if not force and _structure_hash(node) != snap["nachher_hash"]:
+        raise ValueError("Der Ordner wurde seitdem verändert – rückgängig machen würde diese "
+                         "Änderungen ebenfalls verwerfen. Mit erzwingen=true trotzdem ausführen.")
+    old = plistlib.loads(base64.b64decode(snap["vorher"]))
+    node.clear()
+    node.update(old)
+    return snap.get("ordner", "")
+
+
 def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
     """Führt eine Änderung an Bookmarks.plist aus (Safari muss beendet sein).
 
@@ -1575,6 +1791,25 @@ def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
         entry["entfernt"] = remove_from_tree(root, change.get("remove", []), cfg,
                                              change.get("remove_folder_ids", []))
         entry["aktion"] = entry["aktion"] or "Lesezeichen entfernt"
+    for spec in change.get("restructure", []):
+        res = restructure_folder(root, spec, cfg)
+        entry.setdefault("umstrukturiert", []).append(res)
+        log["hinzugefuegt"] += res["hinzugefuegt"]
+        log["ordner_neu"] += res["ordner_neu"]
+        entry["aktion"] = entry["aktion"] or "Ordnerstruktur angelegt"
+    for name in change.get("sort", []):
+        node = _index_nodes(root).get(name)
+        if node is None:
+            raise FileNotFoundError(f"Ordner „{name}“ nicht gefunden")
+        snap = {"ordner": name, "ordner_id": node.get("WebBookmarkUUID"),
+                "vorher": base64.b64encode(plistlib.dumps(node, fmt=plistlib.FMT_BINARY)).decode()}
+        smart_sort(node)
+        snap["nachher_hash"] = _structure_hash(node)
+        entry.setdefault("umstrukturiert", []).append(snap)
+        entry["aktion"] = entry["aktion"] or f"„{name}“ sortiert"
+    for snap in change.get("snapshot_restore", []):
+        restore_folder_snapshot(root, snap, change.get("force", False))
+        entry["aktion"] = entry["aktion"] or "Ordnerstruktur rückgängig gemacht"
     entry.update(log)
     tmp = path.with_suffix(".plist.tmp")
     with open(tmp, "wb") as fh:
@@ -1584,16 +1819,29 @@ def edit_bookmarks(change: Dict, path: Path = None) -> Dict:
     return entry
 
 
-def undo_change_for(entry: Dict) -> Dict:
-    """Änderung, die einen Verlaufseintrag (Hinzufügen) rückgängig macht."""
+def undo_change_for(entry: Dict, force: bool = False) -> Dict:
+    """Änderung, die einen Verlaufseintrag rückgängig macht."""
+    label = f"Rückgängig: {entry.get('aktion', '')} vom {entry.get('zeit', '')}"
+    if entry.get("umstrukturiert"):
+        # Ordner auf den Stand davor zurücksetzen; Lesezeichen, die außerhalb
+        # dieser Ordner hinzugefügt wurden, zusätzlich entfernen
+        inside = {a["id"] for r in entry["umstrukturiert"] for a in r.get("hinzugefuegt", [])}
+        return {"snapshot_restore": [
+                    {k: r[k] for k in ("ordner", "ordner_id", "vorher", "nachher_hash") if k in r}
+                    for r in reversed(entry["umstrukturiert"])],
+                "remove": [{"id": a["id"]} for a in entry.get("hinzugefuegt", [])
+                           if a["id"] not in inside],
+                "force": force, "aktion": label}
     return {"remove": [{"id": a["id"]} for a in entry.get("hinzugefuegt", [])],
             "remove_folder_ids": [f["id"] for f in entry.get("ordner_neu", [])],
-            "aktion": f"Rückgängig: {entry.get('aktion', '')} vom {entry.get('zeit', '')}"}
+            "aktion": label}
 
 
 def last_undoable() -> Optional[Dict]:
     for e in reversed(load_history()):
-        if e.get("hinzugefuegt") and not e.get("rueckgaengig_gemacht"):
+        if e.get("rueckgaengig_gemacht") or e.get("aktion", "").startswith("Rückgängig"):
+            continue
+        if e.get("hinzugefuegt") or e.get("umstrukturiert"):
             return e
     return None
 
@@ -2032,6 +2280,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="vorhandene Sicherungen der Lesezeichen auflisten")
     ap.add_argument("--wiederherstellen", metavar="NAME",
                     help="Sicherung zurückspielen (Name aus --sicherungen)")
+    ap.add_argument("--sortieren", metavar="ORDNER",
+                    help="Ordner smart sortieren (Unterordner zuerst, dann nach Website/Titel)")
     ap.add_argument("--bridge-op", help=argparse.SUPPRESS)
     ap.add_argument("--bridge-token", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
@@ -2041,6 +2291,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.rueckgaengig:
         require_macos()
         return run_undo_last()
+    if args.sortieren:
+        require_macos()
+        root, _, _ = load_bookmarks_any()
+        cleanup_bridge_copies()
+        f = find_folder(args.sortieren, collect_folders(root)) if root else None
+        if not f:
+            print(f"Ordner „{args.sortieren}“ nicht gefunden.")
+            return 1
+        res = apply_bookmark_change({"sort": [f.path]})
+        print(f"✓ „{f.path}“ sortiert (Sicherung: {res['sicherung']})" if res.get("ok")
+              else f"⚠️  {res.get('fehler')}")
+        return 0 if res.get("ok") else 1
     if args.sicherungen:
         for b in list_backups():
             print(f"  {b['name']}   {b['zeit']}   {b['groesse_kb']} KB")
